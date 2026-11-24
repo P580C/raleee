@@ -1,6 +1,7 @@
 Name: Raleee
 Type: Game
 
+reference/Cars.jpg - the player's car: low-poly 80s 4WD rally coupe (pale blue-grey, yellow/red/black stripes, rear wing).
 reference/car.png - flat-shaded 80s hatchback (salmon-red body, cream roof, round twin headlights, chunky black bumpers, white-wall-ish wheels). This is the car style.
 reference/map.jpg - low-poly isometric diorama: a winding road snaking top to bottom across floating terrain islands (grass, forest, sand/dirt, snow) on a pale background. This is the world style.
 
@@ -8,7 +9,7 @@ Study both images before writing any code. Match their mood: soft flat colours, 
 
 The game in one paragraph
 
-A fast, smooth, arcade rally game. One car, one track, against the clock. The camera follows the car as the road winds down the screen from top to bottom. The car is a real 3D model with soft suspension, visible body roll and pitch, and it can be thrown into long, controllable drifts. Surfaces change grip (tarmac, mud, grass, mixed). Some sections rise or drop a level. Beat your best time, retry instantly.
+A fast, smooth, arcade rally game. One car, one track, against the clock. It is a point-to-point rally stage, not a loop: the camera follows the car as the road winds up the screen from bottom to top, start line to finish line. The car is a real 3D model with soft suspension, visible body roll and pitch, and it can be thrown into long, controllable drifts. Surfaces change grip (tarmac, mud, grass, mixed). Some sections rise or drop a level. Beat your best time, retry instantly.
 
 Tech stack (decided - do not change without asking)
 TypeScript + Vite + three.js. Mobile browser first, installable as a PWA later.
@@ -17,17 +18,19 @@ Custom arcade vehicle physics written by hand. Do not use a physics engine (no c
 Fixed-timestep simulation (e.g. 120 Hz) with interpolated rendering, so handling feels identical at 60 Hz, 90 Hz and 120 Hz displays.
 Performance budget (hard requirements)
 Locked 60 fps on a mid-range phone from ~2021 (e.g. iPhone 12, Pixel 5). Test with Chrome DevTools CPU 4x throttle as a proxy.
-Flat-shaded materials only (MeshLambertMaterial or a tiny custom shader). No post-processing in v1.
-One directional light with a single shadow map that follows the car, small frustum, low resolution. Fall back to blob shadows if shadows cost too much.
+Rendering and lighting follow the look of the Brick Snap Lab mini-game (../Brick Build, see BRICK_CLAUDE.md), ported in src/render/lighting.ts, look.ts and materials.ts: flat-shaded MeshStandard (world) and clearcoat plastic with a fake-subsurface glow (car), studio or Preetham-sky environment fill, a sun with PCSS contact-hardening shadows whose shadow map follows the car, fake bounce light, ACES/AgX/Neutral tone mapping, and optional GTAO, tilt-shift depth of field and bloom (post chain only runs when one is > 0). Presets: Studio, Soft, GI look, Overcast, Outdoor, Outdoor lite (default: Outdoor without the post chain; AO + DoF + bloom measured ~4x the frame cost, 29.5 ms vs 7 ms on an M4 Mac); pick with ?look=name or the Look section of ?debug. three is pinned to 0.170.0 to match the mini-game (the PCSS patch needs its shadow chunk). ?fps (or ?debug) shows a frame-time meter; tap it to cycle presets and compare their cost on the device.
 Track is built in chunks; only chunks near the camera are in the scene. Merge static geometry per chunk, instance trees and props.
 Cap devicePixelRatio at 2. Add an FPS/frame-time overlay toggled by a debug flag.
 No per-frame allocations in the hot loop (reuse vectors).
 Camera
-Follows the car smoothly with slight look-ahead in the direction of travel, so the player sees more road ahead than behind. In portrait the car should sit above centre when driving down-screen, giving room to see what's coming.
-The track's overall direction is top to bottom of the screen. Corners swing left and right like map.jpg.
+Follows the car smoothly with slight look-ahead in the direction of travel, so the player sees more road ahead than behind. In portrait the car should sit below centre when driving up-screen, giving room to see what's coming.
+The track's overall direction is bottom to top of the screen (the car drives upwards). Corners swing left and right like map.jpg.
 Camera never rotates. Only translates. Subtle shake on landings and hard impacts, with a setting to turn it off.
+LEGO models (car and scenery)
+The car and scenery will be LEGO models built in BrickLink Studio and exported as LDraw. Import them with tools/import_lego.py, which reuses the Brick Snap Lab pipeline (../Brick Build/assets/ldraw_to_glb.py) without changing it: the brick game keeps full-detail whole parts, this game strips everything the camera can't see. Body/scenery: merged, keeps only faces visible from at least 15° above the horizon (undersides, tubes, insides and faces hidden between bricks go). Submodels named "wheel*" become separate wheel meshes (one per use, culled to their outer half since they spin). Studs use 8-sided primitives. Test car (tools/test/testCar.mpd): 16,076 tris full detail -> 4,650. Check imports with /tools/preview.html?a=<full.glb>&b=<game.glb>&pitch=35. One-time setup: python3 -m venv tools/.venv && tools/.venv/bin/pip install numpy pillow trimesh embreex scipy rtree.
+
 Car model
-Build the car procedurally in code from boxes/bevelled boxes to match reference/car.png: low hatchback, cream roof, salmon body, dark bumpers, round headlights, dark windows, chunky wheels. Keep it under ~1,500 triangles.
+Build the car procedurally in code (src/render/carModel.ts) to match reference/Cars.jpg: a boxy wedge-shaped 80s four-wheel-drive rally coupe, pale blue-grey body, yellow lower band, red and black side stripes, box-flared arches, low rear wing, quad spot lamps, white five-spoke wheels. (reference/car.png was the original hatchback and still sets the general flat-shaded style.) The car is 4WD: strong traction, and drifts are four-wheel drifts where throttle pulls the car round (tuning: awdPull). Keep it under ~1,500 triangles.
 Body is a separate node from the wheels so it can roll and pitch on the suspension.
 Wheels steer visually (front) and spin with speed.
 Handling (the most important section)

@@ -8,80 +8,134 @@
 export const tuning = {
   // ── Chassis ────────────────────────────────────────────
   mass: 1000,
-  /** Yaw inertia = mass * inertiaRadius². Lower = car rotates more eagerly. */
-  inertiaRadius: 1.2,
-  cgToFront: 1.15,
-  cgToRear: 1.25,
-  /** Height of centre of mass; drives longitudinal weight transfer. */
-  cgHeight: 0.55,
-  trackWidth: 1.5,
-  wheelRadius: 0.34,
+  /** Geometry: where the wheels sit (for surface sampling, slopes and visuals). Not used for handling. */
+  cgToFront: 2.3,
+  cgToRear: 2.5,
+  trackWidth: 3.0,
+  wheelRadius: 0.68,
 
   // ── Engine & brakes ────────────────────────────────────
   /** Drive force at standstill (N). Falls off towards top speed. */
-  engineForce: 9500,
-  /** Top speed on tarmac (m/s). 44 m/s ≈ 158 km/h. */
-  topSpeed: 44,
-  /** 0 = front-wheel drive, 1 = rear-wheel drive. */
-  driveRearBias: 0.65,
+  engineForce: 21000,
+  /** Top speed on tarmac (m/s). 60 m/s = 216 km/h. */
+  topSpeed: 60,
   /** Deceleration with no throttle (m/s²). Fades out smoothly near standstill. */
   autoBrake: 4.5,
   /** Extra deceleration while handbrake is held (m/s²). */
-  handbrakeBrake: 2.5,
+  handbrakeBrake: 3,
+  /** Footbrake deceleration on tarmac (m/s²), on top of auto-brake. Less on loose surfaces. */
+  brakeDecel: 13,
   airDrag: 0.5,
 
   // ── Steering ───────────────────────────────────────────
-  /** Max front wheel angle at standstill (rad). */
-  steerLow: 0.6,
-  /** Max front wheel angle at steerSpeedRef and above (rad). */
-  steerHigh: 0.16,
-  steerSpeedRef: 38,
-  /** How fast the wheels turn towards the input (rad/s). */
-  steerRate: 5,
-  /** How fast the wheels return to centre / swap sides (rad/s). */
+  /** Full-lock turn radius at walking pace (m). */
+  turnRadiusLow: 5.5,
+  /** Full-lock turn radius at steerSpeedRef and above (m). Radius grows with speed squared in between. */
+  turnRadiusHigh: 55,
+  steerSpeedRef: 45,
+  /** How fast the yaw rate reaches what the steering asks for (1/s). Higher = sharper turn-in. */
+  yawResponse: 14,
+  /** How fast steering input moves toward the stick (full lock per second). */
+  steerRate: 8,
+  /** How fast steering returns to centre / swaps sides. */
   steerReturnRate: 8,
-  /** Extra lock allowed when counter-steering a slide (fraction of slip angle). */
-  counterSteerBonus: 0.5,
-  /** With steering released, front wheels swing toward the direction of travel (caster). 0 = off. */
-  selfAlign: 0.8,
+  /** Extra rotation when off the throttle or braking (weight on the nose). 0.3 = 30% more at full brake. */
+  liftTurnIn: 0.3,
+  /** Grip-mode rotation is capped at this x the rear grip, so full lock on tarmac carves the tightest
+   *  line the tyres can hold instead of over-rotating into a slide and running wide. */
+  gripRotateCap: 0.9,
+  /** Extra over-rotation allowed on loose surfaces (x grip lost vs tarmac), so gravel still slides into drifts. */
+  looseRotate: 3,
+  /** How far the front wheels swing toward the direction of travel in a slide (visual counter-steer). */
+  counterSteerVisual: 0.35,
+  /** Max visual front wheel angle (rad). */
+  steerVisual: 0.55,
 
-  // ── Tyres ──────────────────────────────────────────────
-  /** Lateral friction coefficients (x surface grip). */
-  gripFront: 1.25,
-  gripRear: 1.15,
-  /** Slip angle (rad) at which each axle reaches peak grip. Smaller = sharper, stiffer. */
-  slipPeakFront: 0.14,
-  slipPeakRear: 0.12,
-  /** Fraction of peak grip left once fully sliding. <1 = slides keep sliding. */
-  slideGrip: 0.78,
+  // ── Grip ───────────────────────────────────────────────
+  /** Front grip: how much of the steering request the car can deliver (x surface grip, capped at 1). */
+  gripFront: 1.8,
+  /** Rear lateral grip in g (x surface grip). Above this the car slides. */
+  gripRear: 2.3,
+  /** How stiffly small sideways motion is killed while gripping (1/s). */
+  latStiffness: 12,
+  /** Slide angle (rad) where the car counts as sliding; fully sliding at 2.5x this. */
+  slipPeak: 0.14,
+  /** Fraction of rear grip left once fully sliding. <1 = slides keep sliding. */
+  slideGrip: 0.85,
   /** Rear grip multiplier while handbrake is held. */
-  handbrakeGrip: 0.3,
-  /** How much rear drive force eats into rear lateral grip (throttle widens slides). */
-  throttleRearSlip: 0.6,
-  /** Scales weight transfer (lift-off oversteer, braking turn-in). */
-  weightTransfer: 1.0,
-  /** Below this speed slip angles are softened to avoid jitter (m/s). */
-  lowSpeedFloor: 4,
-  yawDamping: 0.4,
+  handbrakeGrip: 0.25,
+  /** Extra nose rotation while handbrake is held (x steering request). */
+  handbrakeYaw: 1.7,
+  /** Outside a drift, how fast a slide straightens itself (1/s). */
+  slideRecover: 3,
+  /** Fraction of that recovery throttle cancels (throttle keeps a loose car sliding). */
+  slideRecoverThrottle: 0.75,
+  /** How much throttle eats rear grip in a slide (throttle pushes slides wider). */
+  throttleRearSlip: 0.35,
+  /** How strongly one side's wheels on grass tug the nose that way. */
+  grassTug: 0.12,
 
-  // ── Drift assist ───────────────────────────────────────
-  /** How strongly the slide angle is pulled toward the steering input. 0 = off. */
-  driftAssist: 0.5,
-  /** Slide angle (rad) that full steering input asks for. */
-  driftAngle: 0.55,
-  /** How fast (rad/s) a sliding car's velocity swings toward where the nose points, without losing speed. */
-  driftCarry: 0.6,
+  // ── Drifting ───────────────────────────────────────────
+  /** How fully the drift model takes over once drifting. 0 = off (pure grip model), 1 = full. */
+  driftAssist: 1,
+  /** Slide angle (rad) of a drift with the steering centred. */
+  driftAngle: 0.26,
+  /** Extra slide angle (rad) with full steering into the corner. */
+  driftAngleSteer: 0.26,
+  /** Extra slide angle (rad) at full throttle. */
+  driftAngleThrottle: 0.08,
+  /** How fast the nose is pulled to the drift's slide angle (1/s). */
+  driftHold: 5,
+  /** How fast (rad/s) a drift's line turns at full lock. Partial steering gives a proportionally wider sweep. */
+  driftTurn: 1.05,
+  /** Extra line turn (rad/s) while handbrake is held in a drift. */
+  driftHandbrakeTurn: 0.35,
+  /** Fraction full throttle widens the line by. */
+  driftThrottleWiden: 0.12,
+  /** Max sideways g a drift's line can pull. */
+  driftMaxG: 2.4,
+  /** How quickly the line follows the steering (1/s). */
+  driftLineResponse: 4,
+  /** Speed lost to the slide (m/s² at 90° sideways). */
+  /** Four-wheel drive: share of engine drive that pulls along the nose in a drift (0 = rear-drive feel).
+   *  Higher = throttle tightens the line and pulls the car out of the slide. */
+  awdPull: 0.4,
+  driftScrub: 7,
+  /** Natural slide angle (rad) that turns into a drift while on throttle. */
+  driftEntryAngle: 0.25,
+  /** Below this speed (m/s) drifts end. */
+  driftMinSpeed: 7,
+  /** How fast a drift builds while throttle is held (per second). */
+  driftEntryRate: 3,
+  /** Steering into the corner (0..1) needed to keep a drift alive. */
+  driftKeepSteer: 0.12,
+  /** How fast a drift unwinds with the steering centred (per second). */
+  driftCentreRate: 1,
+  /** How fast a drift ends while holding opposite lock (per second). */
+  driftExitRate: 2.5,
+  /** How fast a drift ends after lifting off the throttle (per second). */
+  driftLiftRate: 1.4,
   /** Beyond this slide angle (rad) the car is firmly pulled back. Prevents spins. */
-  maxSlip: 1.25,
+  maxSlip: 1.2,
+
+  // ── Scandi flick ───────────────────────────────────────
+  /** Yaw kick (rad/s) when a flick fires. 0 disables flicks. */
+  flick: 0.8,
+  /** Time (s) allowed between the feint and the swing the other way. */
+  flickWindow: 0.5,
+  /** Min speed (m/s) for a flick. */
+  flickMinSpeed: 12,
+  /** The feint must have the car rotating at least this fast (rad/s) the other way. */
+  flickMinYaw: 0.2,
 
   // ── Surfaces (grip multiplier, top-speed multiplier, drag per second) ─
   tarmacGrip: 1.0,
   tarmacSpeed: 1.0,
   tarmacDrag: 0.01,
-  gravelGrip: 0.62,
+  gravelGrip: 0.6,
   gravelSpeed: 0.85,
   gravelDrag: 0.05,
-  grassGrip: 0.48,
+  grassGrip: 0.45,
   grassSpeed: 0.7,
   grassDrag: 0.16,
 
@@ -92,30 +146,55 @@ export const tuning = {
   airSteer: 0.8,
 
   // ── Suspension (visual, damped springs) ────────────────
-  rollStiffness: 90,
-  rollDamping: 7,
+  rollStiffness: 60,
+  rollDamping: 5.5,
   /** Body roll (rad) per g of lateral acceleration. */
-  rollPerG: 0.09,
-  pitchStiffness: 80,
-  pitchDamping: 7,
+  rollPerG: 0.045,
+  /** Extra body roll (rad) per radian of slide angle, so drifts lean even on loose surfaces. */
+  rollPerSlip: 0.05,
+  /** Roll limit (rad). */
+  maxRoll: 0.12,
+  pitchStiffness: 55,
+  pitchDamping: 5,
   /** Body pitch (rad) per g of longitudinal acceleration. */
-  pitchPerG: 0.06,
-  heaveStiffness: 140,
-  heaveDamping: 9,
+  pitchPerG: 0.05,
+  /** Pitch limit (rad). */
+  maxPitch: 0.12,
+  heaveStiffness: 90,
+  heaveDamping: 7,
   /** How much a landing / bump compresses the body. */
-  landingSquash: 0.3,
-  suspTravel: 0.22,
+  landingSquash: 0.35,
+  suspTravel: 0.4,
+
+  // ── Collisions (scenery) ──────────────────────────────
+  /** Radius of each of the car's two collision circles (m). */
+  carRadius: 1.85,
+  /** Distance of the circles ahead of and behind the car's centre (m). */
+  carCircleOffset: 2.1,
+  /** Yaw inertia as a radius of gyration (m): smaller = off-centre hits spin the car more. */
+  carGyration: 2.2,
+  /** Bounce off scenery: 0 = dead stop against it, 1 = full bounce. */
+  hitRestitution: 0.3,
+  /** Scrub along scenery while sliding against it (friction coefficient). */
+  hitFriction: 0.3,
+  /** Body knock on a hit: pitch / roll spring kick (rad/s) per m/s of velocity change. */
+  knockPitch: 0.07,
+  knockRoll: 0.09,
+  /** Upward jolt (m/s of heave) per m/s of velocity change. */
+  knockHeave: 0.025,
+  /** Cap on any one knock (rad/s or m/s), so big crashes stay readable. */
+  knockMax: 2.2,
 
   // ── Camera ─────────────────────────────────────────────
   /** Width of view across the short side of the screen (m). */
-  camView: 46,
+  camView: 66,
   /** Look ahead along velocity (seconds of travel). */
   camLookAhead: 0.45,
   camLookAheadMax: 18,
   camAheadFollow: 2.5,
   camFollow: 10,
-  /** Constant shift toward screen-bottom so the car sits above centre (m). */
-  camDownBias: 4,
+  /** Constant shift toward screen-top (the direction of the stage) so the car sits below centre (m). */
+  camUpBias: 6,
 }
 
 export type Tuning = typeof tuning
@@ -123,7 +202,7 @@ export type TuningKey = keyof Tuning
 
 export const tuningDefaults: Readonly<Tuning> = Object.freeze({ ...tuning })
 
-const STORAGE_KEY = 'raleee.tuning'
+const STORAGE_KEY = 'raleee.tuning.v2'
 
 export function loadTuningOverrides(): void {
   try {

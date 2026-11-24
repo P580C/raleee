@@ -1,33 +1,15 @@
 /**
- * Milestone 1 grey-box car: coloured boxes in the reference palette.
+ * The player's car: the procedural 4WD rally coupe from carModel.ts.
  * Hierarchy: root (position + yaw) → body (suspension pitch/roll/heave) and wheels.
  */
-import {
-  BoxGeometry,
-  CanvasTexture,
-  CylinderGeometry,
-  Group,
-  Mesh,
-  MeshBasicMaterial,
-  MeshLambertMaterial,
-  PlaneGeometry,
-  Vector3,
-} from 'three'
+import { CanvasTexture, Group, Mesh, MeshBasicMaterial, PlaneGeometry, Vector3 } from 'three'
 import { clamp, lerp, lerpAngle } from '../sim/math'
 import type { CarState } from '../sim/vehicle'
 import { tuning as T } from '../tuning'
+import { buildCarShell, buildWheel } from './carModel'
 
-const SALMON = '#e2705c'
-const CREAM = '#f2ebd9'
-const GLASS = '#3f5a74'
-const DARK = '#2c2d33'
-const HUB = '#c9cfe6'
-
-function box(w: number, h: number, d: number, color: string, x: number, y: number, z: number): Mesh {
-  const m = new Mesh(new BoxGeometry(w, h, d), new MeshLambertMaterial({ color, flatShading: true }))
-  m.position.set(x, y, z)
-  return m
-}
+/** Body shell is modelled at 1x and scaled up; wheel positions come from tuning (already at full size). */
+const BODY_SCALE = 2
 
 function blobTexture(): CanvasTexture {
   const c = document.createElement('canvas')
@@ -55,31 +37,19 @@ export class CarView {
   constructor() {
     const R = T.wheelRadius
     // Body (car faces +z, local +x is the car's left).
-    this.body.add(box(1.68, 0.56, 3.8, SALMON, 0, 0.64, 0))
-    this.body.add(box(1.5, 0.5, 1.95, GLASS, 0, 1.15, -0.3))
-    this.body.add(box(1.54, 0.09, 1.9, CREAM, 0, 1.44, -0.35))
-    this.body.add(box(1.76, 0.2, 0.2, DARK, 0, 0.42, 1.9))
-    this.body.add(box(1.76, 0.2, 0.2, DARK, 0, 0.42, -1.9))
-    this.body.add(box(0.3, 0.2, 0.06, CREAM, 0.52, 0.7, 1.91))
-    this.body.add(box(0.3, 0.2, 0.06, CREAM, -0.52, 0.7, 1.91))
-    this.body.add(box(0.3, 0.14, 0.06, '#b3332b', 0.55, 0.72, -1.91))
-    this.body.add(box(0.3, 0.14, 0.06, '#b3332b', -0.55, 0.72, -1.91))
+    const shell = buildCarShell(T.cgToFront / BODY_SCALE, -T.cgToRear / BODY_SCALE, R / BODY_SCALE)
+    shell.scale.setScalar(BODY_SCALE)
+    this.body.add(shell)
     this.root.add(this.body)
 
-    const tyreGeo = new CylinderGeometry(R, R, 0.26, 12)
-    tyreGeo.rotateZ(Math.PI / 2)
-    const tyreMat = new MeshLambertMaterial({ color: DARK, flatShading: true })
-    const hubGeo = new BoxGeometry(0.28, R * 1.1, 0.16)
-    const hubMat = new MeshLambertMaterial({ color: HUB, flatShading: true })
     const halfTw = T.trackWidth / 2
     for (let w = 0; w < 4; w++) {
       const node = new Group()
       // sim wheel order FL, FR, RL, RR; car's left is local +x
-      node.position.set(w & 1 ? -halfTw : halfTw, R, w < 2 ? T.cgToFront : -T.cgToRear)
+      const left = (w & 1) === 0
+      node.position.set(left ? halfTw : -halfTw, R, w < 2 ? T.cgToFront : -T.cgToRear)
       const steer = new Group()
-      const spin = new Group()
-      spin.add(new Mesh(tyreGeo, tyreMat))
-      spin.add(new Mesh(hubGeo, hubMat))
+      const spin = buildWheel(R, 0.26 * BODY_SCALE, left ? 1 : -1)
       steer.add(spin)
       node.add(steer)
       this.root.add(node)
@@ -89,7 +59,7 @@ export class CarView {
     }
 
     this.shadowMat = new MeshBasicMaterial({ map: blobTexture(), transparent: true, opacity: 0.32, depthWrite: false, color: '#26303c' })
-    const shadow = new Mesh(new PlaneGeometry(2.6, 4.8), this.shadowMat)
+    const shadow = new Mesh(new PlaneGeometry(2.7 * BODY_SCALE, 5 * BODY_SCALE), this.shadowMat)
     shadow.rotation.x = -Math.PI / 2
     shadow.renderOrder = 1
     this.shadowRoot.add(shadow)

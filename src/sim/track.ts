@@ -3,6 +3,7 @@
  * Pure: no three.js. Used by both sim and render.
  */
 import { smoothstep } from './math'
+import type { Obstacle } from './obstacles'
 
 export type SurfaceName = 'tarmac' | 'gravel' | 'grass'
 export const SURFACES: readonly SurfaceName[] = ['tarmac', 'gravel', 'grass']
@@ -14,6 +15,8 @@ export interface TrackPoint {
   e: number
   /** Surface of the segment from this point to the next. Inherits from the previous point if omitted. */
   surface?: SurfaceName
+  /** Marks the finish line (point-to-point stages). */
+  finish?: boolean
 }
 
 export interface TrackData {
@@ -25,7 +28,7 @@ export interface TrackData {
   /** Half-width of the terrain island around the centreline (m). Beyond it you fall. */
   island: number
   closed: boolean
-  /** Sample index offset (m along track) for the start line. */
+  /** Distance along the track (m) of the start line. */
   start?: number
   points: TrackPoint[]
 }
@@ -84,9 +87,14 @@ export class Track {
   readonly width: number
   readonly verge: number
   readonly island: number
+  /** Scenery the car can hit. Filled in by whoever places scenery (static after that). */
+  obstacles: Obstacle[] = []
   readonly n: number
   readonly length: number
   readonly startIdx: number
+  /** Finish line sample and distance. Closed tracks without a finish point use the start line. */
+  readonly finishIdx: number
+  readonly finishS: number
   /** Sample positions, elevation, unit tangent, distance along. */
   readonly px: Float64Array
   readonly pz: Float64Array
@@ -134,7 +142,9 @@ export class Track {
     const ss: number[] = []
     const segs = this.closed ? np : np - 1
     const tmp: P2 = { x: 0, z: 0 }
+    const pointIdx: number[] = []
     for (let i = 0; i < segs; i++) {
+      pointIdx.push(xs.length)
       const p0 = get(i - 1)
       const p1 = get(i)
       const p2 = get(i + 1)
@@ -161,6 +171,7 @@ export class Track {
       }
     }
     if (!this.closed) {
+      pointIdx.push(xs.length)
       xs.push(P[np - 1].x)
       zs.push(P[np - 1].z)
       es.push(P[np - 1].e)
@@ -204,7 +215,12 @@ export class Track {
       for (const o of outs) o[i] /= cnt
     }
 
-    this.startIdx = Math.min(n - 1, Math.round((data.start ?? 0) / SPACING))
+    let si = 0
+    while (si < n - 1 && this.ps[si] < (data.start ?? 0)) si++
+    this.startIdx = si
+    const fp = P.findIndex((p) => p.finish)
+    this.finishIdx = fp >= 0 ? pointIdx[fp] : this.closed ? this.startIdx : n - 1
+    this.finishS = this.ps[this.finishIdx]
   }
 
   headingAt(i: number): number {

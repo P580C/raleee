@@ -1,15 +1,21 @@
-/** Minimal race HUD for milestone 1: speed readout, restart button, fade overlay, perf overlay. */
+/** Minimal race HUD: stage timer, finish banner, speed readout, restart button, fade overlay, perf overlay. */
+
+export function formatTime(t: number): string {
+  const m = Math.floor(t / 60)
+  const s = t - m * 60
+  return `${m}:${s < 10 ? '0' : ''}${s.toFixed(2)}`
+}
+
 export class Hud {
   private readonly speedEl: HTMLDivElement
+  private readonly timeEl: HTMLDivElement
+  private readonly finishEl: HTMLDivElement
+  private shownTime = ''
+  private shownFinished = false
   private readonly fadeEl: HTMLDivElement
   private readonly perfEl: HTMLDivElement | null
   private shownSpeed = -1
 
-  // perf accumulators
-  private frames = 0
-  private sum = 0
-  private max = 0
-  private simSum = 0
   private acc = 0
 
   constructor(parent: HTMLElement, onRestart: () => void, debug: boolean) {
@@ -17,6 +23,17 @@ export class Hud {
     speed.className = 'hud-speed'
     parent.appendChild(speed)
     this.speedEl = speed
+
+    const time = document.createElement('div')
+    time.className = 'hud-time'
+    parent.appendChild(time)
+    this.timeEl = time
+
+    const finish = document.createElement('div')
+    finish.className = 'hud-finish'
+    finish.style.display = 'none'
+    parent.appendChild(finish)
+    this.finishEl = finish
 
     const restart = document.createElement('button')
     restart.className = 'hud-restart'
@@ -49,25 +66,29 @@ export class Hud {
     this.speedEl.innerHTML = `${kmh}<span>km/h</span>`
   }
 
+  setTime(t: number, finished: boolean): void {
+    const txt = formatTime(t)
+    if (txt !== this.shownTime) {
+      this.shownTime = txt
+      this.timeEl.textContent = txt
+    }
+    if (finished !== this.shownFinished) {
+      this.shownFinished = finished
+      this.finishEl.style.display = finished ? 'block' : 'none'
+      if (finished) this.finishEl.innerHTML = `<b>STAGE COMPLETE</b>${txt}<small>↺ or R to retry</small>`
+    }
+  }
+
   setFade(opacity: number): void {
     this.fadeEl.style.opacity = opacity.toFixed(3)
   }
 
-  /** frameMs: wall time since last frame. simMs: time spent stepping physics this frame. */
-  perf(frameMs: number, simMs: number, extra: string): void {
+  /** Debug telemetry line (timing lives in the FPS meter). Updated twice a second. */
+  perf(frameMs: number, extra: string): void {
     if (!this.perfEl) return
-    this.frames++
-    this.sum += frameMs
-    this.simSum += simMs
-    if (frameMs > this.max) this.max = frameMs
     this.acc += frameMs
     if (this.acc < 500) return
-    const avg = this.sum / this.frames
-    this.perfEl.textContent = `${(1000 / avg).toFixed(0)} fps  ${avg.toFixed(1)} ms avg  ${this.max.toFixed(1)} max  sim ${(this.simSum / this.frames).toFixed(2)} ms\n${extra}`
-    this.frames = 0
-    this.sum = 0
-    this.max = 0
-    this.simSum = 0
+    this.perfEl.textContent = extra
     this.acc = 0
   }
 }

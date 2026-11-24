@@ -1,37 +1,33 @@
 /**
- * Grey-box track meshes generated from Track samples: floating grass island,
- * road coloured by surface, white edge lines, shoulders, centre dashes,
- * edge posts and a scatter of cone trees for speed reference.
- * Everything static is merged into one geometry.
+ * Track mesh generated from Track samples: the road on its own (no terrain or scenery yet), as a slab with
+ * a surface coloured by surface type, edge lines, a double-width centre dash and chequered start/finish
+ * lines. Everything is merged into one geometry.
  */
-import {
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  ConeGeometry,
-  BoxGeometry,
-  Group,
-  InstancedMesh,
-  Matrix4,
-  Mesh,
-  MeshLambertMaterial,
-} from 'three'
-import { makeGroundSample, type Track } from '../sim/track'
+import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, LessDepth, Mesh, ShadowMaterial } from 'three'
+import { matte } from './materials'
+import type { Track } from '../sim/track'
 
+/**
+ * Colours are calibrated so a sunlit road surface shows the design colour on screen under the default
+ * look ("Outdoor lite"): tarmac #53555E, stripes #E5F1F0. Lighting darkens and blues them, so the inputs
+ * are brighter. Stripes can't get there from albedo alone (white renders #dfe6f0), so they're white with a
+ * little emissive. Re-calibrate if the default look changes.
+ */
 const C = {
-  grass: new Color('#93c95f'),
-  grassDark: new Color('#7fb552'),
-  skirt: new Color('#9a7552'),
-  skirtDark: new Color('#7b5b40'),
-  tarmac: new Color('#4c5059'),
+  /** Renders as #53555E in the sun. */
+  tarmac: new Color('#676466'),
   gravel: new Color('#c39a6b'),
   roadGrass: new Color('#86b85a'),
-  edge: new Color('#f6f4ee'),
-  shoulder: new Color('#d9ccb0'),
-  dash: new Color('#f6f4ee'),
-  checkA: new Color('#f6f4ee'),
   checkB: new Color('#26272c'),
 }
+/** Stripes (edge lines, centre dashes, white chequers): white + emissive renders as #E5F1F0 in the sun. */
+const STRIPE_EMISSIVE = '#4c6200'
+const WHITE = new Color('#ffffff')
+/** How deep the road slab is below its surface (m): gives it visible sides against the floor. */
+const SLAB = 0.8
+/** Edge line width (m), outside the driving surface. Centre dash is 2x the old 0.26 m. */
+const EDGE_W = 0.35
+const DASH_W = 0.52
 
 class GeoBuilder {
   pos: number[] = []
@@ -51,23 +47,14 @@ class GeoBuilder {
   }
 }
 
-function mulberry32(seed: number): () => number {
-  return () => {
-    seed |= 0
-    seed = (seed + 0x6d2b79f5) | 0
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
 export function buildTrackView(track: Track): Group {
   const group = new Group()
-  const geo = new GeoBuilder()
+  const road = new GeoBuilder()
+  const lines = new GeoBuilder()
+  let geo = road
   const n = track.n
   const segs = track.closed ? n : n - 1
   const half = track.width / 2
-  const isl = track.island
   const tmp1 = new Color()
   const tmp2 = new Color()
 
@@ -118,82 +105,72 @@ export function buildTrackView(track: Track): Group {
     )
   }
 
-  // Island top, then its sides (tapered, like a floating chunk of earth).
-  strip(-isl, 0, isl, 0, (i, out) => out.copy(C.grass).lerp(C.grassDark, 0.5 + 0.5 * Math.sin(i * 0.05)))
-  strip(isl, 0, isl - 2.5, -4, solid(C.skirt))
-  strip(-isl + 2.5, -4, -isl, 0, solid(C.skirtDark))
-  strip(isl - 2.5, -4, -isl + 2.5, -4, solid(C.skirtDark)) // underside, rarely seen
+  // Road slab sides (the road floats on its own over the floor).
+  const outer = half + EDGE_W
+  strip(outer, 0.02, outer, -SLAB, roadColor)
+  strip(-outer, -SLAB, -outer, 0.02, roadColor)
+  // End caps on a point-to-point stage (both windings, so whichever faces outward draws).
+  if (!track.closed) {
+    for (const i of [0, n - 1]) {
+      const c = roadColor(i, tmp1)
+      const e = track.pe[i]
+      const lx = track.px[i] - rx(i) * outer
+      const lz = track.pz[i] - rz(i) * outer
+      const qx = track.px[i] + rx(i) * outer
+      const qz = track.pz[i] + rz(i) * outer
+      for (const flip of [false, true]) {
+        const [ax, az, bx, bz] = flip ? [qx, qz, lx, lz] : [lx, lz, qx, qz]
+        geo.tri(ax, e + 0.025, az, bx, e + 0.025, bz, bx, e - SLAB, bz, c, c, c)
+        geo.tri(ax, e + 0.025, az, bx, e - SLAB, bz, ax, e - SLAB, az, c, c, c)
+      }
+    }
+  }
 
-  // Shoulders, edge lines, road.
-  strip(half + 0.35, 0.015, half + 1.4, 0.015, solid(C.shoulder))
-  strip(-half - 1.4, 0.015, -half - 0.35, 0.015, solid(C.shoulder))
-  strip(half, 0.02, half + 0.35, 0.02, solid(C.edge))
-  strip(-half - 0.35, 0.02, -half, 0.02, solid(C.edge))
+  // Road surface.
   strip(-half, 0.025, half, 0.025, roadColor)
 
-  // Centre dashes on tarmac: 3 m on, 3 m off.
-  strip(-0.13, 0.035, 0.13, 0.035, solid(C.dash), (i) => track.wt[i] > 0.6 && Math.floor(track.ps[i] / 3) % 2 === 0)
+  // Stripes go in their own mesh: edge lines, then centre dashes on tarmac (3 m on, 3 m off, double width).
+  geo = lines
+  strip(half, 0.02, outer, 0.02, solid(WHITE))
+  strip(-outer, 0.02, -half, 0.02, solid(WHITE))
+  strip(-DASH_W / 2, 0.035, DASH_W / 2, 0.035, solid(WHITE), (i) => track.wt[i] > 0.6 && Math.floor(track.ps[i] / 3) % 2 === 0)
 
-  // Chequered start line across the road.
-  {
+  // Chequered start and finish lines across the road.
+  const chequer = (at: number) => {
     const cols = 8
     for (let k = 0; k < cols; k++) {
       const a = -half + (k * track.width) / cols
       const b = a + track.width / cols
       for (let row = 0; row < 2; row++) {
-        const i0 = (track.startIdx + row) % n
-        const c = (k + row) % 2 === 0 ? C.checkA : C.checkB
-        strip(a, 0.04, b, 0.04, solid(c), (i) => i === i0)
+        const i0 = (at + row) % n
+        const white = (k + row) % 2 === 0
+        geo = white ? lines : road
+        strip(a, 0.04, b, 0.04, solid(white ? WHITE : C.checkB), (i) => i === i0)
       }
     }
   }
+  chequer(track.startIdx)
+  if (track.finishIdx !== track.startIdx) chequer(track.finishIdx)
 
-  const mat = new MeshLambertMaterial({ vertexColors: true, flatShading: true })
-  group.add(new Mesh(geo.build(), mat))
+  const roadMesh = new Mesh(road.build(), matte({ vertexColors: true }))
+  roadMesh.receiveShadow = true
+  roadMesh.castShadow = true
+  const lineMesh = new Mesh(lines.build(), matte({ color: WHITE, emissive: STRIPE_EMISSIVE }))
+  lineMesh.receiveShadow = true
+  group.add(roadMesh, lineMesh)
 
-  // Edge posts every 12 m, alternating red/white.
-  const m4 = new Matrix4()
-  const postIdx: number[] = []
-  for (let i = 0; i < n; i += 12) postIdx.push(i)
-  const posts = new InstancedMesh(new BoxGeometry(0.3, 0.9, 0.3), new MeshLambertMaterial({ flatShading: true }), postIdx.length * 2)
-  const red = new Color('#d9534a')
-  const white = new Color('#f6f4ee')
-  let k = 0
-  for (const i of postIdx) {
-    for (const side of [-1, 1]) {
-      const lat = side * (half + 1.9)
-      m4.makeTranslation(track.px[i] + rx(i) * lat, track.pe[i] + 0.45, track.pz[i] + rz(i) * lat)
-      posts.setMatrixAt(k, m4)
-      posts.setColorAt(k, (i / 12) % 2 === 0 ? red : white)
-      k++
-    }
-  }
-  group.add(posts)
-
-  // Cone trees scattered on the island, away from any road.
-  const rand = mulberry32(1234)
-  const q = makeGroundSample()
-  const spots: number[] = []
-  for (let i = 0; i < n; i += 5) {
-    for (const side of [-1, 1]) {
-      if (rand() > 0.45) continue
-      const lat = side * (half + 4 + rand() * (isl - half - 6))
-      const x = track.px[i] + rx(i) * lat + (rand() - 0.5) * 3
-      const z = track.pz[i] + rz(i) * lat + (rand() - 0.5) * 3
-      track.query(x, z, -1, q)
-      if (Math.abs(q.lateral) < half + 3.5 || !q.onIsland) continue
-      spots.push(x, q.height, z, 0.7 + rand() * 0.6)
-    }
-  }
-  const treeGeo = new ConeGeometry(1.3, 4, 6)
-  treeGeo.translate(0, 2, 0)
-  const trees = new InstancedMesh(treeGeo, new MeshLambertMaterial({ color: '#4e8f4a', flatShading: true }), spots.length / 4)
-  for (let t = 0; t < spots.length / 4; t++) {
-    const s = spots[t * 4 + 3]
-    m4.makeScale(s, s, s).setPosition(spots[t * 4], spots[t * 4 + 1], spots[t * 4 + 2])
-    trees.setMatrixAt(t, m4)
-  }
-  group.add(trees)
+  // Ground: the drivable island (track.island either side) at road height that shows only shadows, so the floor keeps its
+  // exact colour everywhere else. It is opaque to depth, so the road sits on it. On the inside of tight
+  // bends the strip folds over itself: double-sided so nothing is culled, and LessDepth so the overlapping
+  // layer doesn't darken shadows twice.
+  const ground = new GeoBuilder()
+  geo = ground
+  strip(-track.island, -0.01, track.island, -0.01, solid(WHITE))
+  const groundMat = new ShadowMaterial({ color: '#2b2840', opacity: 0.35, side: DoubleSide, depthFunc: LessDepth })
+  const groundMesh = new Mesh(ground.build(), groundMat)
+  groundMesh.receiveShadow = true
+  groundMesh.renderOrder = -1
+  group.add(groundMesh)
 
   return group
 }

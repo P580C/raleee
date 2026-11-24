@@ -1,5 +1,5 @@
 /**
- * Game rules around the car: auto-reset when stuck or fallen, restart, fades, events.
+ * Game rules around the car: stage timer and finish, auto-reset when stuck or fallen, restart, fades.
  * Runs inside the fixed-timestep loop (stepRules) and per frame (frame).
  */
 import type { Track } from './sim/track'
@@ -10,8 +10,14 @@ const STUCK_RESET = 1.5
 const FADE_OUT = 0.22
 const FADE_IN = 0.3
 
+export type StageStatus = 'waiting' | 'running' | 'finished'
+
 export class Game {
   fade = 0
+  /** Waiting at the line until the first throttle; the clock runs until the finish line. */
+  status: StageStatus = 'waiting'
+  /** Stage time (s), advanced in fixed sim steps so it's frame-rate independent. */
+  time = 0
   private fallT = 0
   private stuckT = 0
   private phase: 'drive' | 'out' | 'in' = 'drive'
@@ -25,14 +31,30 @@ export class Game {
   ) {}
 
   restart(): void {
+    this.status = 'waiting'
+    this.time = 0
     this.teleport(this.track.startIdx)
     this.phase = 'in'
     this.fade = 0.6
   }
 
-  /** Called every sim step. */
+  /** Called every sim step, before stepCar. After the finish the car just rolls to a stop. */
+  filterControls(c: Controls): void {
+    if (this.status === 'finished') {
+      c.throttle = 0
+      c.handbrake = false
+      c.brake = 0
+    }
+  }
+
+  /** Called every sim step, after stepCar. */
   stepRules(c: Controls, dt: number): void {
     const s = this.curr
+    if (this.status === 'waiting' && c.throttle > 0 && this.phase === 'drive') this.status = 'running'
+    if (this.status === 'running') {
+      this.time += dt
+      if (s.trackS >= this.track.finishS && s.onIsland) this.status = 'finished'
+    }
     if (this.phase !== 'drive') return
     this.fallT = !s.onIsland || s.y < s.groundY - 1.5 ? this.fallT + dt : 0
     this.stuckT = c.throttle > 0.5 && s.speed < 1.5 && s.grounded ? this.stuckT + dt : 0

@@ -1,5 +1,6 @@
 /** ?debug tuning panel: live sliders over tuning.ts values, persisted locally, with a copy button. */
 import { resetTuning, saveTuningOverrides, tuning, tuningDefaults, tuningDiff, type TuningKey } from '../tuning'
+import { look, lookDefaults, lookDiff, LOOK_CHOICES, LOOK_SLIDERS, LOOKS, resetLook, saveLookOverrides, type Look } from '../render/look'
 import { saveSettings, settings } from './settings'
 
 type Def = [key: TuningKey, min: number, max: number, step: number]
@@ -8,34 +9,60 @@ const GROUPS: [string, Def[]][] = [
   [
     'Grip',
     [
-      ['gripFront', 0.3, 2.5, 0.01],
-      ['gripRear', 0.3, 2.5, 0.01],
+      ['gripFront', 0.3, 3, 0.01],
+      ['gripRear', 0.3, 4, 0.01],
+      ['latStiffness', 2, 40, 0.5],
+      ['slipPeak', 0.03, 0.4, 0.005],
+      ['slideGrip', 0.2, 1.2, 0.01],
       ['handbrakeGrip', 0.05, 1, 0.01],
-      ['slideGrip', 0.3, 1.2, 0.01],
-      ['slipPeakFront', 0.03, 0.4, 0.005],
-      ['slipPeakRear', 0.03, 0.4, 0.005],
-      ['throttleRearSlip', 0, 2, 0.05],
-      ['weightTransfer', 0, 3, 0.05],
+      ['handbrakeYaw', 1, 3, 0.05],
+      ['throttleRearSlip', 0, 1, 0.01],
+      ['slideRecover', 0, 10, 0.1],
+      ['slideRecoverThrottle', 0, 1, 0.01],
+      ['grassTug', 0, 0.5, 0.01],
     ],
   ],
   [
     'Drift',
     [
-      ['driftAssist', 0, 2, 0.01],
+      ['driftAssist', 0, 1, 0.01],
       ['driftAngle', 0, 1.2, 0.01],
-      ['driftCarry', 0, 3, 0.05],
+      ['driftAngleSteer', 0, 0.6, 0.01],
+      ['driftHold', 0.5, 12, 0.1],
+      ['driftTurn', 0, 2.5, 0.01],
+      ['driftHandbrakeTurn', 0, 1, 0.01],
+      ['driftMaxG', 0.5, 4, 0.05],
+      ['awdPull', 0, 1, 0.05],
+      ['driftScrub', 0, 15, 0.1],
+      ['driftEntryAngle', 0.1, 0.8, 0.01],
+      ['driftKeepSteer', 0, 0.6, 0.01],
+      ['driftCentreRate', 0.2, 5, 0.1],
+      ['driftLiftRate', 0.2, 5, 0.1],
+      ['driftExitRate', 0.2, 6, 0.1],
       ['maxSlip', 0.5, 2, 0.05],
-      ['selfAlign', 0, 1.5, 0.05],
-      ['counterSteerBonus', 0, 1.5, 0.05],
+    ],
+  ],
+  [
+    'Scandi flick',
+    [
+      ['flick', 0, 3, 0.05],
+      ['flickWindow', 0.1, 1, 0.01],
+      ['flickMinSpeed', 0, 30, 0.5],
+      ['flickMinYaw', 0, 1, 0.01],
     ],
   ],
   [
     'Steering',
     [
-      ['steerLow', 0.1, 1, 0.01],
-      ['steerHigh', 0.03, 0.6, 0.005],
+      ['turnRadiusLow', 2, 30, 0.5],
+      ['turnRadiusHigh', 15, 200, 1],
       ['steerSpeedRef', 10, 70, 1],
+      ['yawResponse', 1, 25, 0.5],
       ['steerRate', 0.5, 15, 0.1],
+      ['gripRotateCap', 0.5, 2, 0.05],
+      ['looseRotate', 0, 6, 0.1],
+      ['counterSteerVisual', 0, 1, 0.05],
+      ['liftTurnIn', 0, 1, 0.05],
       ['steerReturnRate', 0.5, 20, 0.1],
     ],
   ],
@@ -44,18 +71,10 @@ const GROUPS: [string, Def[]][] = [
     [
       ['engineForce', 2000, 25000, 100],
       ['topSpeed', 15, 80, 0.5],
-      ['driveRearBias', 0, 1, 0.05],
       ['autoBrake', 0, 15, 0.1],
       ['handbrakeBrake', 0, 10, 0.1],
+      ['brakeDecel', 0, 30, 0.5],
       ['airDrag', 0, 3, 0.05],
-    ],
-  ],
-  [
-    'Chassis',
-    [
-      ['inertiaRadius', 0.6, 2.5, 0.05],
-      ['cgHeight', 0, 1.5, 0.05],
-      ['yawDamping', 0, 3, 0.05],
     ],
   ],
   [
@@ -75,13 +94,17 @@ const GROUPS: [string, Def[]][] = [
     [
       ['rollStiffness', 10, 300, 1],
       ['rollDamping', 0, 40, 0.5],
-      ['rollPerG', 0, 0.3, 0.005],
+      ['rollPerG', 0, 0.5, 0.005],
+      ['rollPerSlip', 0, 0.8, 0.01],
+      ['maxRoll', 0.05, 0.8, 0.01],
       ['pitchStiffness', 10, 300, 1],
       ['pitchDamping', 0, 40, 0.5],
-      ['pitchPerG', 0, 0.3, 0.005],
+      ['pitchPerG', 0, 0.4, 0.005],
+      ['maxPitch', 0.05, 0.6, 0.01],
       ['heaveStiffness', 10, 400, 1],
       ['heaveDamping', 0, 40, 0.5],
-      ['landingSquash', 0, 1, 0.01],
+      ['landingSquash', 0, 1.5, 0.01],
+      ['suspTravel', 0.05, 1.2, 0.01],
     ],
   ],
   [
@@ -92,6 +115,20 @@ const GROUPS: [string, Def[]][] = [
     ],
   ],
   [
+    'Collisions',
+    [
+      ['carRadius', 0.5, 3, 0.05],
+      ['carCircleOffset', 0, 4, 0.05],
+      ['carGyration', 0.5, 5, 0.05],
+      ['hitRestitution', 0, 1, 0.01],
+      ['hitFriction', 0, 1, 0.01],
+      ['knockPitch', 0, 0.3, 0.005],
+      ['knockRoll', 0, 0.3, 0.005],
+      ['knockHeave', 0, 0.1, 0.001],
+      ['knockMax', 0, 5, 0.05],
+    ],
+  ],
+  [
     'Camera',
     [
       ['camView', 20, 120, 1],
@@ -99,7 +136,7 @@ const GROUPS: [string, Def[]][] = [
       ['camLookAheadMax', 0, 40, 1],
       ['camAheadFollow', 0.2, 10, 0.1],
       ['camFollow', 1, 30, 0.5],
-      ['camDownBias', -10, 25, 0.5],
+      ['camUpBias', -10, 25, 0.5],
     ],
   ],
 ]
@@ -109,7 +146,7 @@ function fmt(v: number, step: number): string {
   return v.toFixed(d)
 }
 
-export function createDebugPanel(parent: HTMLElement, onSettingsChanged: () => void): void {
+export function createDebugPanel(parent: HTMLElement, onLookChanged: () => void, onSettingsChanged: () => void): void {
   const toggle = document.createElement('button')
   toggle.className = 'dbg-toggle'
   toggle.textContent = 'TUNE'
@@ -141,18 +178,22 @@ export function createDebugPanel(parent: HTMLElement, onSettingsChanged: () => v
     actions.appendChild(b)
   }
   const inputs: { key: TuningKey; input: HTMLInputElement; out: HTMLSpanElement; step: number }[] = []
+  const lookSyncs: (() => void)[] = []
   const syncAll = () => {
     for (const r of inputs) {
       r.input.value = String(tuning[r.key])
       r.out.textContent = fmt(tuning[r.key], r.step)
       r.out.classList.toggle('changed', tuning[r.key] !== tuningDefaults[r.key])
     }
+    for (const f of lookSyncs) f()
   }
   button('Copy values', () => {
     const diff = tuningDiff()
-    const text = Object.keys(diff).length
-      ? `// Raleee tuning changes\n${JSON.stringify(diff, null, 2)}`
-      : '// Raleee tuning: no changes from defaults'
+    const ld = lookDiff()
+    const parts: string[] = []
+    if (Object.keys(diff).length) parts.push(`// Raleee tuning changes\n${JSON.stringify(diff, null, 2)}`)
+    if (Object.keys(ld).length) parts.push(`// Raleee look changes\n${JSON.stringify(ld, null, 2)}`)
+    const text = parts.length ? parts.join('\n') : '// Raleee: no changes from defaults'
     copyText(text).then((ok) => {
       status.textContent = ok ? 'Copied changed values.' : 'Copy blocked — select the text below.'
       if (!ok) showText(panel, text)
@@ -160,6 +201,8 @@ export function createDebugPanel(parent: HTMLElement, onSettingsChanged: () => v
   })
   button('Reset all', () => {
     resetTuning()
+    resetLook()
+    onLookChanged()
     syncAll()
     status.textContent = 'Defaults restored.'
   })
@@ -203,6 +246,78 @@ export function createDebugPanel(parent: HTMLElement, onSettingsChanged: () => v
     })
     row.append(name, out, input)
     sGroup.appendChild(row)
+  }
+
+  // Look (lighting and rendering), shared with the Brick Snap Lab mini-game.
+  {
+    const g = section(panel, 'Look')
+    const presetRow = document.createElement('div')
+    presetRow.className = 'dbg-choices'
+    for (const p of LOOKS) {
+      const b = document.createElement('button')
+      b.textContent = p.label
+      b.addEventListener('click', () => {
+        Object.assign(look, p.values)
+        saveLookOverrides()
+        onLookChanged()
+        syncAll()
+      })
+      presetRow.appendChild(b)
+    }
+    g.appendChild(presetRow)
+    const changed = () => {
+      saveLookOverrides()
+      onLookChanged()
+    }
+    for (const [key, label, options] of LOOK_CHOICES) {
+      const row = document.createElement('div')
+      row.className = 'dbg-choices'
+      const name = document.createElement('span')
+      name.textContent = label
+      row.appendChild(name)
+      const buttons: [string, HTMLButtonElement][] = []
+      for (const [value, text] of options) {
+        const b = document.createElement('button')
+        b.textContent = text
+        b.addEventListener('click', () => {
+          ;(look as unknown as Record<string, string>)[key] = value
+          changed()
+          syncAll()
+        })
+        buttons.push([value, b])
+        row.appendChild(b)
+      }
+      lookSyncs.push(() => {
+        for (const [value, b] of buttons) b.classList.toggle('on', look[key] === value)
+      })
+      g.appendChild(row)
+    }
+    for (const [key, min, max, step] of LOOK_SLIDERS) {
+      const row = document.createElement('label')
+      row.className = 'dbg-row'
+      const name = document.createElement('span')
+      name.textContent = key
+      const out = document.createElement('span')
+      out.className = 'dbg-val'
+      const input = document.createElement('input')
+      input.type = 'range'
+      input.min = String(min)
+      input.max = String(max)
+      input.step = String(step)
+      const sync = () => {
+        input.value = String(look[key])
+        out.textContent = fmt(look[key], step)
+        out.classList.toggle('changed', look[key] !== (lookDefaults as Look)[key])
+      }
+      input.addEventListener('input', () => {
+        look[key] = Number(input.value)
+        sync()
+        changed()
+      })
+      lookSyncs.push(sync)
+      row.append(name, out, input)
+      g.appendChild(row)
+    }
   }
 
   for (const [title, defs] of GROUPS) {

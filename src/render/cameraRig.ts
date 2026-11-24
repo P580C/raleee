@@ -5,8 +5,8 @@ const PITCH = (35 * Math.PI) / 180
 const YAW = (45 * Math.PI) / 180
 const DISTANCE = 200
 
-/** World direction that points toward the bottom of the screen (on the ground plane). */
-export const SCREEN_DOWN = new Vector3(Math.sin(YAW), 0, Math.cos(YAW))
+/** World direction that points toward the top of the screen (on the ground plane). Stages run this way. */
+export const SCREEN_UP = new Vector3(-Math.sin(YAW), 0, -Math.cos(YAW))
 
 /**
  * Orthographic camera at a fixed isometric-ish angle. It never rotates — it only
@@ -59,7 +59,7 @@ export class CameraRig {
   /** Jump straight to the car (after a reset). */
   snap(x: number, y: number, z: number): void {
     this.ahead.set(0, 0, 0)
-    this.focus.set(x, y, z).addScaledVector(SCREEN_DOWN, T.camDownBias)
+    this.focus.set(x, y, z).addScaledVector(SCREEN_UP, T.camUpBias)
     this.apply(0, 0)
   }
 
@@ -83,8 +83,8 @@ export class CameraRig {
     this.ahead.x += (ax - this.ahead.x) * ka
     this.ahead.z += (az - this.ahead.z) * ka
 
-    const tx = x + this.ahead.x + SCREEN_DOWN.x * T.camDownBias
-    const tz = z + this.ahead.z + SCREEN_DOWN.z * T.camDownBias
+    const tx = x + this.ahead.x + SCREEN_UP.x * T.camUpBias
+    const tz = z + this.ahead.z + SCREEN_UP.z * T.camUpBias
     const kf = 1 - Math.exp(-T.camFollow * dt)
     this.focus.x += (tx - this.focus.x) * kf
     this.focus.z += (tz - this.focus.z) * kf
