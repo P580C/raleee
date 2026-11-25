@@ -481,8 +481,13 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
     latGrip *= 1 - T.throttleRearSlip * c.throttle * slide
     const accL = clamp(-vL * T.latStiffness, -latGrip, latGrip)
     const g = 1 - k
-    s.vx += (fx * accF + rx * accL) * g * dt
-    s.vz += (fz * accF + rz * accL) * g * dt
+    // Front tyres bite too: a little in normal cornering (fading out in a drift), more under handbrake,
+    // where they are what drags the car round while the rear is loose. Never more than closes the slip.
+    const frontLat = (c.handbrake ? T.handbrakeFrontGrip : T.frontLatGrip * g) * surfF * G
+    const latNeed = -vL * T.latStiffness - accL * g
+    const accLF = clamp(latNeed, -frontLat, frontLat)
+    s.vx += ((fx * accF + rx * accL) * g + rx * accLF) * dt
+    s.vz += ((fz * accF + rz * accL) * g + rz * accLF) * dt
 
     // ── Drift model: the engine drives along the direction of travel and steering sets the line ──
     if (k > 0 && speed0 > 1) {
@@ -523,7 +528,7 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
     // runs wide = understeer). Loose surfaces get more headroom so they still step out into drifts.
     if (absVF > 1) {
       const margin = T.gripRotateCap + T.looseRotate * Math.max(0, 1 - surfR)
-      const cap = (margin * T.gripRear * surfR * G) / absVF
+      const cap = (margin * (T.gripRear * surfR + T.frontLatGrip * surfF) * G) / absVF
       yawGrip = clamp(yawGrip, -cap, cap)
     }
     // Weight on the nose (lift-off or braking) helps the car rotate into a corner.

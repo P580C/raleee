@@ -17,6 +17,11 @@ game only ever looks down from about 35 degrees, so here:
 Usage (from the repo root):
   tools/.venv/bin/python tools/import_lego.py model.ldr public/models/model.glb
 
+Scenery for the stage editor: add --scenery "Name" and the model is listed in public/models/scenery.json
+(next to the output), so the editor's SCENERY tab offers it. --game-scale multiplies the stud size (build
+small, show big) and --collide-above sets the height (m) below which the car drives over it (base plates):
+  tools/.venv/bin/python tools/import_lego.py ldraw/House.ldr public/models/house.glb --scenery "House"
+
 Set up the venv once:
   python3 -m venv tools/.venv && tools/.venv/bin/pip install numpy pillow trimesh embreex scipy rtree
 """
@@ -207,8 +212,32 @@ def run(args):
     stats["bytes"] = os.path.getsize(args.output)
     stats["missing_parts"] = sorted(fl.missing)
     stats["seconds"] = round(time.time() - t0, 2)
+    if args.scenery:
+        stats["scenery"] = add_to_catalog(args)
     print(json.dumps(stats))
     return stats
+
+
+def add_to_catalog(args):
+    """Add (or update) this model in scenery.json next to the output GLB. Returns the entry."""
+    out_dir = os.path.dirname(os.path.abspath(args.output))
+    path = os.path.join(out_dir, "scenery.json")
+    entries = []
+    if os.path.exists(path):
+        with open(path) as f:
+            entries = json.load(f)
+    file = os.path.basename(args.output)
+    entry = {
+        "id": os.path.splitext(file)[0],
+        "name": args.scenery,
+        "file": file,
+        "scale": args.game_scale,
+        "collideAbove": args.collide_above,
+    }
+    entries = [e for e in entries if e.get("id") != entry["id"]] + [entry]
+    with open(path, "w") as f:
+        f.write("[\n" + ",\n".join("  " + json.dumps(e) for e in entries) + "\n]\n")
+    return entry
 
 
 def main():
@@ -225,6 +254,10 @@ def main():
     ap.add_argument("--wheel", default="wheel", help="submodels whose name contains this are exported as wheels")
     ap.add_argument("--dirs", type=int, default=96, help="view directions tested per triangle")
     ap.add_argument("--scale", type=float, default=1 / 20, help="1 unit = 1 stud pitch by default")
+    ap.add_argument("--scenery", metavar="NAME", help="list the model in scenery.json for the stage editor")
+    ap.add_argument("--game-scale", type=float, default=1.0, help="scenery: stud-size multiplier in the game")
+    ap.add_argument("--collide-above", type=float, default=0.3,
+                    help="scenery: parts lower than this (m) don't block the car")
     args = ap.parse_args()
     if not os.path.exists(args.pipeline):
         sys.exit(f"pipeline not found: {args.pipeline}")

@@ -482,3 +482,19 @@ describe('roundabouts', () => {
 function wrap(a: number): number {
   return Math.atan2(Math.sin(a), Math.cos(a))
 }
+
+describe('stage scenery', () => {
+  it('placed scenery and the auto-mounds switch pass through to the track data', () => {
+    const d: PieceTrackData = {
+      format: 'pieces',
+      name: 's',
+      heading: 225,
+      pieces: [{ k: 'straight' }],
+      scenery: [{ m: 'mound1', x: 10, z: -20, r: 45 }],
+      autoScenery: false,
+    }
+    const td = piecesToTrackData(d)
+    expect(td.scenery).toEqual([{ m: 'mound1', x: 10, z: -20, r: 45 }])
+    expect(td.autoScenery).toBe(false)
+  })
+})

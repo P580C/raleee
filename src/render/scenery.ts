@@ -1,16 +1,15 @@
 /**
- * Test scenery: LEGO mounds dotted beside the road. Placement is procedural for now; it will move into the
- * track JSON once there are more assets. Each placement also becomes an obstacle the car can hit.
+ * Stage scenery: models placed in the editor (TrackData.scenery), plus, unless the stage turns it off, test
+ * mounds scattered along the road. Each copy is instanced and becomes an obstacle the car can hit.
  */
 import { BufferGeometry, Float32BufferAttribute, Group, LineBasicMaterial, LineLoop } from 'three'
 import { makeObstacle, type Obstacle } from '../sim/obstacles'
-import type { Track } from '../sim/track'
-import { instanceLego, legoFootprint, loadLegoModel, type LegoModel } from './lego'
+import { makeGroundSample, type SceneryItem, type Track } from '../sim/track'
+import { instanceLego } from './lego'
+import { loadCatalog, loadScenery, type LoadedScenery } from './sceneryCatalog'
 
-/** Mound1 is built small: 3x the car's stud scale (about 30 m across). */
-const MOUND_SCALE = 3
-/** Parts lower than this (m) don't collide: at 3x scale the mound's base plates are about 1 m tall. */
-const MOUND_COLLIDE_ABOVE = 1.2
+/** The model scattered along the road when a stage has autoScenery on. */
+const AUTO_MODEL = 'mound1'
 
 function mulberry32(seed: number): () => number {
   return () => {
@@ -34,38 +33,75 @@ function indexAt(track: Track, s: number): number {
   return lo
 }
 
-let moundModel: Promise<LegoModel> | null = null
+/** Ground height for a placed model: the road height nearest to it. */
+export function groundHeightAt(track: Track, x: number, z: number): number {
+  const g = makeGroundSample()
+  track.query(x, z, -1, g)
+  return g.height
+}
 
-export async function buildScenery(track: Track): Promise<{ group: Group; obstacles: Obstacle[] }> {
-  // Loaded once and shared by every stage (the instanced meshes reuse its geometry).
-  moundModel ??= loadLegoModel(`${import.meta.env.BASE_URL}models/mound1.glb`, MOUND_SCALE)
-  const mound = await moundModel
+/** Mounds alternating either side of the road, clear of other road, roundabouts and placed scenery. */
+function autoPlacements(track: Track, s: LoadedScenery, placed: { x: number; z: number; r: number }[]): number[] {
   const rand = mulberry32(42)
   const half = track.width / 2
-  const radius = Math.hypot(mound.size.x, mound.size.z) / 2
-  const placements: number[] = []
+  const radius = s.radius
+  const out: number[] = []
   let side = 1
-  // Alternating sides, so each side gets one about every 2 diameters.
-  for (let s = 20; s < track.length - 10; s += radius * (1 + rand() * 0.6)) {
-    const i = indexAt(track, s)
+  for (let d = 20; d < track.length - 10; d += radius * (1 + rand() * 0.6)) {
+    const i = indexAt(track, d)
     const lat = side * (half + 0.35 + radius * 0.9 + 2 + rand() * radius * 0.5)
     const x = track.px[i] - track.tz[i] * lat
     const z = track.pz[i] + track.tx[i] * lat
-    // Keep clear of other stretches of road (hairpins fold the road back on itself).
     let clear = true
     for (let j = 0; j < track.n && clear; j += 4) {
       if (Math.hypot(track.px[j] - x, track.pz[j] - z) < half + radius + 1) clear = false
     }
     for (const j of track.junctions) if (Math.hypot(j.x - x, j.z - z) < j.reach + radius + 1) clear = false
-    if (clear) placements.push(x, track.pe[i], z, rand() * Math.PI * 2)
+    for (const p of placed) if (Math.hypot(p.x - x, p.z - z) < p.r + radius) clear = false
+    if (clear) out.push(x, track.pe[i], z, rand() * Math.PI * 2)
     side = -side
   }
-  const { outline, height } = legoFootprint(mound, MOUND_COLLIDE_ABOVE)
+  return out
+}
+
+export async function buildScenery(
+  track: Track,
+  opts: { scenery?: SceneryItem[]; autoScenery?: boolean } = {},
+): Promise<{ group: Group; obstacles: Obstacle[] }> {
+  const catalog = await loadCatalog()
+  const group = new Group()
   const obstacles: Obstacle[] = []
-  for (let i = 0; i < placements.length; i += 4) {
-    if (outline.length) obstacles.push(makeObstacle(outline, height, placements[i], placements[i + 1], placements[i + 2], placements[i + 3]))
+  const add = (s: LoadedScenery, placements: number[]) => {
+    if (!placements.length) return
+    group.add(instanceLego(s.model, placements))
+    if (!s.outline.length) return
+    for (let i = 0; i < placements.length; i += 4) {
+      obstacles.push(makeObstacle(s.outline, s.height, placements[i], placements[i + 1], placements[i + 2], placements[i + 3]))
+    }
   }
-  return { group: instanceLego(mound, placements), obstacles }
+  // Placed models, instanced per model.
+  const byModel = new Map<string, number[]>()
+  for (const it of opts.scenery ?? []) {
+    let list = byModel.get(it.m)
+    if (!list) byModel.set(it.m, (list = []))
+    list.push(it.x, groundHeightAt(track, it.x, it.z), it.z, (it.r * Math.PI) / 180)
+  }
+  const placedCircles: { x: number; z: number; r: number }[] = []
+  for (const [id, placements] of byModel) {
+    const def = catalog.find((d) => d.id === id)
+    if (!def) continue // model no longer in the catalog
+    const s = await loadScenery(def)
+    for (let i = 0; i < placements.length; i += 4) placedCircles.push({ x: placements[i], z: placements[i + 2], r: s.radius })
+    add(s, placements)
+  }
+  if (opts.autoScenery !== false) {
+    const def = catalog.find((d) => d.id === AUTO_MODEL)
+    if (def) {
+      const s = await loadScenery(def)
+      add(s, autoPlacements(track, s, placedCircles))
+    }
+  }
+  return { group, obstacles }
 }
 
 /** Debug view: obstacle outlines as red lines just above the ground. */

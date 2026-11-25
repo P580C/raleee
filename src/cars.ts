@@ -46,7 +46,7 @@ export const CARS: CarDef[] = [
     wheel: HATCH_WHEEL,
     archRise: HATCH_ARCH_RISE,
     // Two-wheel drive: no 4WD pull, less power, and a rear that lets go sooner.
-    tuning: { awdPull: 0, engineForce: 17000, topSpeed: 52, gripFront: 1.7, gripRear: 1.85, slideGrip: 0.8 },
+    tuning: { awdPull: 0, engineForce: 17000, topSpeed: 52, gripFront: 1.7, gripRear: 1.85, slideGrip: 0.8, frontLatGrip: 0, handbrakeFrontGrip: 0 },
   },
 ]
 

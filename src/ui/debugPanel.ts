@@ -16,6 +16,8 @@ const GROUPS: [string, Def[]][] = [
       ['slideGrip', 0.2, 1.2, 0.01],
       ['handbrakeGrip', 0.05, 1, 0.01],
       ['handbrakeYaw', 1, 3, 0.05],
+      ['frontLatGrip', 0, 1.5, 0.05],
+      ['handbrakeFrontGrip', 0, 2, 0.05],
       ['throttleRearSlip', 0, 1, 0.01],
       ['slideRecover', 0, 10, 0.1],
       ['slideRecoverThrottle', 0, 1, 0.01],

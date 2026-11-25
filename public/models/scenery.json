@@ -1,0 +1,3 @@
+[
+  { "id": "mound1", "name": "Mound", "file": "mound1.glb", "scale": 3, "collideAbove": 1.2 }
+]

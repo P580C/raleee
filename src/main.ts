@@ -147,7 +147,8 @@ function loadStage(id: string, force = false): void {
     disposeGroup(debugLines)
     debugLines = null
   }
-  track = new Track(trackDataOf(entry))
+  const data = trackDataOf(entry)
+  track = new Track(data)
   trackGroup = buildTrackView(track)
   lighting.prepareObject(trackGroup)
   scene.add(trackGroup)
@@ -158,7 +159,7 @@ function loadStage(id: string, force = false): void {
   })
   placeAtStart()
   const t = track
-  buildScenery(t)
+  buildScenery(t, data)
     .then(({ group, obstacles }) => {
       if (token !== stageToken) {
         group.traverse((o) => (o as InstancedMesh).isInstancedMesh && (o as InstancedMesh).dispose())

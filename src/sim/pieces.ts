@@ -6,7 +6,7 @@
  * Pure data and maths (no three.js). `piecesToTrackData` turns a piece list into the spline format the sim
  * already uses: points every few metres along exact arcs, so the centreline is the true geometry.
  */
-import type { JunctionData, SurfaceName, TrackData, TrackPoint } from './track'
+import type { JunctionData, SceneryItem, SurfaceName, TrackData, TrackPoint } from './track'
 
 export type PieceKind = 'straight' | 'bend45' | 'bend90' | 'large90' | 'small90' | 'roundabout'
 /** L / R for bends; roundabouts also take S (straight on). */
@@ -31,6 +31,10 @@ export interface PieceTrackData {
   verge?: number
   island?: number
   pieces: Piece[]
+  /** Scenery placed in the editor. */
+  scenery?: SceneryItem[]
+  /** Scatter the test mounds along the road (default true). */
+  autoScenery?: boolean
 }
 
 export interface PieceSpec {
@@ -263,6 +267,8 @@ export function piecesToTrackData(data: PieceTrackData): TrackData {
   const { points, junctions } = layoutPieces(data)
   return {
     junctions,
+    scenery: data.scenery,
+    autoScenery: data.autoScenery,
     name: data.name,
     width: data.width ?? DEFAULTS.width,
     verge: data.verge ?? DEFAULTS.verge,

@@ -44,6 +44,14 @@ export interface Junction extends JunctionData {
   surfIdx: number
 }
 
+/** A scenery model placed in the editor: catalog id, position on the ground, turn about +y in degrees. */
+export interface SceneryItem {
+  m: string
+  x: number
+  z: number
+  r: number
+}
+
 export interface TrackData {
   name: string
   /** Road width (m). */
@@ -58,6 +66,10 @@ export interface TrackData {
   points: TrackPoint[]
   /** Roundabouts (from piece stages). */
   junctions?: JunctionData[]
+  /** Placed scenery (drawn and collided with by the renderer; the sim ignores it). */
+  scenery?: SceneryItem[]
+  /** Scatter the test mounds along the road (default true). */
+  autoScenery?: boolean
 }
 
 export interface GroundSample {

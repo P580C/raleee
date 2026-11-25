@@ -61,6 +61,11 @@ export const tuning = {
   gripFront: 1.8,
   /** Rear lateral grip in g (x surface grip). Above this the car slides. */
   gripRear: 2.3,
+  /** Front tyres' share of lateral grip in g (x surface grip): pulls the line round with the nose. Fades out in a drift. */
+  frontLatGrip: 0.25,
+  /** Front lateral grip (g, x surface grip) while handbrake is held: the fronts keep biting while the rear is loose,
+   *  so a handbrake turn pulls round the corner instead of carrying straight on. */
+  handbrakeFrontGrip: 0.6,
   /** How stiffly small sideways motion is killed while gripping (1/s). */
   latStiffness: 12,
   /** Slide angle (rad) where the car counts as sliding; fully sliding at 2.5x this. */
