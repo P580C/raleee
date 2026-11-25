@@ -17,8 +17,10 @@ export class Hud {
   private shownSpeed = -1
 
   private acc = 0
+  private readonly els: HTMLElement[] = []
+  private readonly backEl: HTMLButtonElement
 
-  constructor(parent: HTMLElement, onRestart: () => void, debug: boolean) {
+  constructor(parent: HTMLElement, onRestart: () => void, onBack: () => void, debug: boolean) {
     const speed = document.createElement('div')
     speed.className = 'hud-speed'
     parent.appendChild(speed)
@@ -46,6 +48,18 @@ export class Hud {
     })
     parent.appendChild(restart)
 
+    const back = document.createElement('button')
+    back.className = 'hud-back'
+    back.textContent = 'MENU'
+    back.addEventListener('pointerdown', (e) => {
+      e.stopPropagation()
+      e.preventDefault()
+      onBack()
+    })
+    parent.appendChild(back)
+    this.backEl = back
+    this.els.push(speed, time, restart, back)
+
     const fade = document.createElement('div')
     fade.className = 'fade'
     parent.appendChild(fade)
@@ -57,6 +71,18 @@ export class Hud {
       parent.appendChild(perf)
       this.perfEl = perf
     } else this.perfEl = null
+  }
+
+  /** Hidden on the menu and in the editor. */
+  setVisible(v: boolean): void {
+    for (const e of this.els) e.style.visibility = v ? '' : 'hidden'
+    if (!v) this.finishEl.style.display = 'none'
+    else if (this.shownFinished) this.finishEl.style.display = 'block'
+  }
+
+  /** The back button's label: MENU, or EDIT when test-driving from the editor. */
+  setBackLabel(label: string): void {
+    this.backEl.textContent = label
   }
 
   setSpeed(ms: number): void {
@@ -75,7 +101,7 @@ export class Hud {
     if (finished !== this.shownFinished) {
       this.shownFinished = finished
       this.finishEl.style.display = finished ? 'block' : 'none'
-      if (finished) this.finishEl.innerHTML = `<b>STAGE COMPLETE</b>${txt}<small>↺ or R to retry</small>`
+      if (finished) this.finishEl.innerHTML = `<b>STAGE COMPLETE</b>${txt}<small>↺ or R to retry · Esc for menu</small>`
     }
   }
 

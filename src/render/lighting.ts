@@ -18,6 +18,7 @@ import {
   type MeshStandardMaterial,
   MathUtils,
   NeutralToneMapping,
+  type Object3D,
   type OrthographicCamera,
   PCFShadowMap,
   PCFSoftShadowMap,
@@ -210,6 +211,15 @@ export class Lighting {
       m.defines ??= {}
       m.defines.USE_PCSS = ''
     }
+  }
+
+  /** prepareMaterial for every material under an object added after startup (stages, cars). */
+  prepareObject(o: Object3D): void {
+    o.traverse((c) => {
+      const m = (c as Mesh).material as Material | Material[] | undefined
+      if (Array.isArray(m)) m.forEach((x) => this.prepareMaterial(x))
+      else if (m) this.prepareMaterial(m)
+    })
   }
 
   private setShadowType(): void {

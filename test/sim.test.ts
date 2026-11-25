@@ -4,6 +4,9 @@ import { convexHull, makeObstacle } from '../src/sim/obstacles'
 import { makeGroundSample, Track, type TrackData } from '../src/sim/track'
 import { CarState, placeCar, SIM_DT, stepCar, type Controls } from '../src/sim/vehicle'
 import { tuning } from '../src/tuning'
+import { findOverlaps, layoutPieces, LEVEL, parsePieces, PIECES, piecesToTrackData, type Piece, type PieceTrackData } from '../src/sim/pieces'
+import valley from '../src/tracks/valley.json'
+import sprint from '../src/tracks/sprint.json'
 
 function straight(surface: 'tarmac' | 'gravel' | 'grass', extra: Partial<TrackData> = {}): Track {
   return new Track({
@@ -301,5 +304,64 @@ describe('obstacles', () => {
     run(t, s, coast, 1.2, (st) => (hit = Math.max(hit, st.hitImpact)))
     expect(hit).toBe(0)
     expect(s.z).toBeGreaterThan(30)
+  })
+})
+
+describe('track pieces', () => {
+  const base = (pieces: Piece[], heading = 0): PieceTrackData => ({ format: 'pieces', name: 't', heading, pieces })
+
+  it('four 90 degree bends of each size turn the heading right round and close the square', () => {
+    for (const k of ['bend90', 'large90', 'small90'] as const) {
+      const lay = layoutPieces(base([{ k, t: 'L' }, { k, t: 'L' }, { k, t: 'L' }, { k, t: 'L' }]))
+      const end = lay.ends[3]
+      expect(end.deg).toBe(0)
+      expect(Math.hypot(end.x, end.z)).toBeLessThan(1e-6)
+      // Quarter turn left from heading +z ends at (r, r): the car's left is +x.
+      expect(lay.ends[0].x).toBeCloseTo(PIECES[k].radius, 6)
+      expect(lay.ends[0].z).toBeCloseTo(PIECES[k].radius, 6)
+    }
+  })
+
+  it('45 degree bends and straights keep exact headings and lengths', () => {
+    const lay = layoutPieces(base([{ k: 'bend45', t: 'R' }, { k: 'straight' }, { k: 'bend45', t: 'R' }], 225))
+    expect(lay.ends.map((e) => e.deg)).toEqual([180, 180, 135])
+    expect(lay.pieceS[1] - lay.pieceS[0]).toBeCloseTo((40 * Math.PI) / 4, 6)
+    expect(lay.pieceS[2] - lay.pieceS[1]).toBeCloseTo(32, 6)
+  })
+
+  it('becomes a sim track: start line at the first piece, finish after the last, ramps change height', () => {
+    const data = base(parsePieces('S S^ gravel L90 S'), 225)
+    const t = new Track(piecesToTrackData(data))
+    expect(Math.hypot(t.px[t.startIdx], t.pz[t.startIdx])).toBeLessThan(1)
+    const stage = 32 + 32 + (32 * Math.PI) / 2 + 32
+    expect(t.finishS - t.ps[t.startIdx]).toBeCloseTo(stage, -0.5)
+    expect(t.pe[t.finishIdx]).toBeCloseTo(LEVEL, 3)
+    const g = makeGroundSample()
+    // Middle of the bend is gravel.
+    const lay = layoutPieces(data)
+    const [x, z] = lay.piecePts[2].slice(Math.floor(lay.piecePts[2].length / 6) * 3)
+    t.query(x, z, -1, g)
+    expect(g.wGravel).toBeGreaterThan(0.9)
+  })
+
+  it('flags pieces that run into other road', () => {
+    // A spiral of small bends with straights folds back over itself.
+    const lay = layoutPieces(base(parsePieces('S RS RS S S RS RS S S S')))
+    expect(findOverlaps(lay, 14).size).toBeGreaterThan(0)
+    const clean = layoutPieces(base(parsePieces('S L90 S R90 S')))
+    expect(findOverlaps(clean, 14).size).toBe(0)
+  })
+
+  it('built-in stages are clean and drivable', () => {
+    for (const d of [valley, sprint] as PieceTrackData[]) {
+      const lay = layoutPieces(d)
+      expect(findOverlaps(lay, 14).size).toBe(0)
+      const t = new Track(piecesToTrackData(d))
+      const s = new CarState()
+      placeCar(s, t, t.startIdx)
+      run(t, s, go, 3)
+      expect(s.speed).toBeGreaterThan(15)
+      expect(s.onIsland).toBe(true)
+    }
   })
 })

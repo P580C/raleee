@@ -5,7 +5,7 @@
 import { BufferGeometry, Float32BufferAttribute, Group, LineBasicMaterial, LineLoop } from 'three'
 import { makeObstacle, type Obstacle } from '../sim/obstacles'
 import type { Track } from '../sim/track'
-import { instanceLego, legoFootprint, loadLegoModel } from './lego'
+import { instanceLego, legoFootprint, loadLegoModel, type LegoModel } from './lego'
 
 /** Mound1 is built small: 3x the car's stud scale (about 30 m across). */
 const MOUND_SCALE = 3
@@ -34,8 +34,12 @@ function indexAt(track: Track, s: number): number {
   return lo
 }
 
+let moundModel: Promise<LegoModel> | null = null
+
 export async function buildScenery(track: Track): Promise<{ group: Group; obstacles: Obstacle[] }> {
-  const mound = await loadLegoModel(`${import.meta.env.BASE_URL}models/mound1.glb`, MOUND_SCALE)
+  // Loaded once and shared by every stage (the instanced meshes reuse its geometry).
+  moundModel ??= loadLegoModel(`${import.meta.env.BASE_URL}models/mound1.glb`, MOUND_SCALE)
+  const mound = await moundModel
   const rand = mulberry32(42)
   const half = track.width / 2
   const radius = Math.hypot(mound.size.x, mound.size.z) / 2

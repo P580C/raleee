@@ -3,7 +3,7 @@
  * a surface coloured by surface type, edge lines, a double-width centre dash and chequered start/finish
  * lines. Everything is merged into one geometry.
  */
-import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, LessDepth, Mesh, ShadowMaterial } from 'three'
+import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, LessDepth, type Material, Mesh, MeshBasicMaterial, type Object3D, ShadowMaterial } from 'three'
 import { matte } from './materials'
 import type { Track } from '../sim/track'
 
@@ -173,4 +173,42 @@ export function buildTrackView(track: Track): Group {
   group.add(groundMesh)
 
   return group
+}
+
+/**
+ * A flat translucent band over the road between samples i0 and i1 (editor highlights: the selected piece,
+ * pieces that overlap). Drawn on top of the road, never written to depth.
+ */
+export function buildRoadOverlay(track: Track, i0: number, i1: number, color: string, opacity: number, widen = 1): Mesh {
+  const pos: number[] = []
+  const half = (track.width / 2 + EDGE_W) * widen
+  const a = Math.max(0, i0)
+  const b = Math.min(track.n - 1, i1)
+  for (let i = a; i < b; i++) {
+    const j = i + 1
+    const lx = (k: number) => track.px[k] - -track.tz[k] * half
+    const lz = (k: number) => track.pz[k] - track.tx[k] * half
+    const qx = (k: number) => track.px[k] + -track.tz[k] * half
+    const qz = (k: number) => track.pz[k] + track.tx[k] * half
+    const yi = track.pe[i] + 0.08
+    const yj = track.pe[j] + 0.08
+    pos.push(lx(i), yi, lz(i), qx(i), yi, qz(i), lx(j), yj, lz(j))
+    pos.push(qx(i), yi, qz(i), qx(j), yj, qz(j), lx(j), yj, lz(j))
+  }
+  const g = new BufferGeometry()
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3))
+  const m = new Mesh(g, new MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: DoubleSide }))
+  m.renderOrder = 3
+  return m
+}
+
+/** Free the geometry and materials of a group built here (or any other group that owns its own). */
+export function disposeGroup(g: Object3D): void {
+  g.traverse((o) => {
+    const m = o as Mesh
+    m.geometry?.dispose()
+    const mat = m.material as Material | Material[] | undefined
+    if (Array.isArray(mat)) mat.forEach((x) => x.dispose())
+    else mat?.dispose()
+  })
 }

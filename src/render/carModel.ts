@@ -22,9 +22,7 @@ export const CAR_COLORS = {
   tyre: '#2b2e35',
   rim: '#f3f3ef',
 }
-type ColorKey = keyof typeof CAR_COLORS
-
-type V3 = [number, number, number]
+export type V3 = [number, number, number]
 
 const _a = new Vector3()
 const _b = new Vector3()
@@ -33,10 +31,12 @@ const _n = new Vector3()
 const _o = new Vector3()
 
 /** Collects flat-shaded triangles per colour. Every face is wound to point away from a given inside point. */
-class Builder {
-  readonly parts = new Map<ColorKey, number[]>()
+export class Builder {
+  readonly parts = new Map<string, number[]>()
 
-  tri(col: ColorKey, a: V3, b: V3, c: V3, inside: V3): void {
+  constructor(private readonly palette: Record<string, string>) {}
+
+  tri(col: string, a: V3, b: V3, c: V3, inside: V3): void {
     _a.set(...a)
     _b.set(...b)
     _c.set(...c)
@@ -48,7 +48,7 @@ class Builder {
     else arr.push(...a, ...c, ...b)
   }
 
-  quad(col: ColorKey, a: V3, b: V3, c: V3, d: V3, inside: V3): void {
+  quad(col: string, a: V3, b: V3, c: V3, d: V3, inside: V3): void {
     this.tri(col, a, b, c, inside)
     this.tri(col, a, c, d, inside)
   }
@@ -57,7 +57,7 @@ class Builder {
    * Hexahedron from 8 corners: bottom ring [0..3] then top ring [4..7], both in the order
    * left-front, right-front, right-rear, left-rear. `skip` drops faces nobody sees ('bottom', 'top', ...).
    */
-  hexa(col: ColorKey, p: V3[], skip: string[] = []): void {
+  hexa(col: string, p: V3[], skip: string[] = []): void {
     const ins: V3 = [0, 0, 0]
     for (const q of p) for (let i = 0; i < 3; i++) ins[i] += q[i] / 8
     const f = (name: string, a: number, b: number, c: number, d: number) => {
@@ -72,7 +72,7 @@ class Builder {
   }
 
   /** Axis-aligned box centred at (x, y, z). */
-  box(col: ColorKey, w: number, h: number, d: number, x: number, y: number, z: number, skip: string[] = []): void {
+  box(col: string, w: number, h: number, d: number, x: number, y: number, z: number, skip: string[] = []): void {
     const x0 = x + w / 2
     const x1 = x - w / 2
     const y0 = y - h / 2
@@ -90,7 +90,7 @@ class Builder {
   }
 
   /** Flat polygon on the car's side at |x| = `x`, given as (z, y) outline points; mirrored to both sides. */
-  side(col: ColorKey, x: number, pts: [number, number][]): void {
+  side(col: string, x: number, pts: [number, number][]): void {
     for (const sx of [1, -1]) {
       const inside: V3 = [0, 0.6, 0]
       for (let i = 1; i < pts.length - 1; i++) {
@@ -100,7 +100,7 @@ class Builder {
   }
 
   /** A short cylinder (lamp) pointing along +z or -z, added as raw triangles. */
-  lamp(col: ColorKey, r: number, depth: number, x: number, y: number, z: number, segs = 8): void {
+  lamp(col: string, r: number, depth: number, x: number, y: number, z: number, segs = 8): void {
     const g = new CylinderGeometry(r, r, depth, segs, 1).toNonIndexed()
     g.applyMatrix4(new Matrix4().makeRotationX(Math.PI / 2).setPosition(x, y, z))
     const pos = g.getAttribute('position').array
@@ -117,12 +117,13 @@ class Builder {
       geo.setAttribute('position', new Float32BufferAttribute(arr, 3))
       geo.computeVertexNormals()
       // Lamps get their own (uncached) material so they can glow: CarView drives their emissive.
+      const color = this.palette[col]
       const mat =
         col === 'tail' || col === 'reverse'
-          ? matte({ color: CAR_COLORS[col], roughness: 0.35, emissive: col === 'tail' ? '#ff1405' : '#fff6e0', emissiveIntensity: 0 })
-          : col === 'black' || col === 'tyre'
-            ? matte({ color: CAR_COLORS[col], roughness: 0.6 })
-            : plastic(CAR_COLORS[col])
+          ? matte({ color, roughness: 0.35, emissive: col === 'tail' ? '#ff1405' : '#fff6e0', emissiveIntensity: 0 })
+          : col === 'black' || col === 'tyre' || col === 'grille'
+            ? matte({ color, roughness: 0.6 })
+            : plastic(color)
       const m = new Mesh(geo, mat)
       m.name = col
       m.castShadow = true
@@ -149,7 +150,7 @@ export const ARCH_RISE = 0.12
  * positions at 1x, `wheelR` the wheel radius at 1x.
  */
 export function buildCarShell(wheelZF: number, wheelZR: number, wheelR: number): Group {
-  const b = new Builder()
+  const b = new Builder(CAR_COLORS)
   const W = 0.74 // half width of the main body
   const ZF = 1.98 // nose
   const ZR = -1.98 // tail
@@ -274,24 +275,39 @@ export function buildCarShell(wheelZF: number, wheelZR: number, wheelR: number):
 
 const TYRE_MAT = matte({ color: CAR_COLORS.tyre, roughness: 0.9 })
 
-/** One wheel: dark tyre with a white five-spoke-look rim on the outer face. Axle along x. */
-export function buildWheel(radius: number, width: number, outward: 1 | -1): Group {
+/** How a wheel's outer face looks. */
+export interface WheelStyle {
+  /** Rim disc colour, radius (fraction of the wheel radius) and sides (5 reads as five spokes). */
+  rim: string
+  rimR: number
+  rimSides: number
+  /** Optional white-wall ring around the rim. */
+  wall?: string
+}
+
+export const RALLY_WHEEL: WheelStyle = { rim: CAR_COLORS.rim, rimR: 0.66, rimSides: 5 }
+
+/** One wheel: dark tyre with a rim on the outer face (and an optional white wall). Axle along x. */
+export function buildWheel(radius: number, width: number, outward: 1 | -1, style: WheelStyle = RALLY_WHEEL): Group {
   const g = new Group()
   const tyre = new CylinderGeometry(radius, radius, width, 12)
   tyre.rotateZ(Math.PI / 2)
   const tyreMesh = new Mesh(tyre, TYRE_MAT)
   tyreMesh.castShadow = true
   g.add(tyreMesh)
-  // Pentagonal white rim disc, then a small dark hub: reads as a five-spoke wheel at this size.
-  const rim = new CylinderGeometry(radius * 0.66, radius * 0.66, width * 0.2, 5)
-  rim.rotateZ(Math.PI / 2)
-  rim.translate((outward * width) / 2, 0, 0)
-  const rimMesh = new Mesh(rim, plastic(CAR_COLORS.rim))
-  rimMesh.castShadow = true
-  g.add(rimMesh)
-  const hub = new CylinderGeometry(radius * 0.18, radius * 0.18, width * 0.24, 6)
-  hub.rotateZ(Math.PI / 2)
-  hub.translate((outward * width) / 2, 0, 0)
-  g.add(new Mesh(hub, TYRE_MAT))
+  const disc = (r: number, depth: number, sides: number, color: string | null) => {
+    const geo = new CylinderGeometry(r, r, depth, sides)
+    geo.rotateZ(Math.PI / 2)
+    geo.translate((outward * width) / 2, 0, 0)
+    const m = new Mesh(geo, color ? plastic(color) : TYRE_MAT)
+    m.castShadow = true
+    g.add(m)
+  }
+  if (style.wall) {
+    disc(radius * 0.86, width * 0.14, 12, style.wall)
+    disc(radius * 0.72, width * 0.18, 12, null)
+  }
+  disc(radius * style.rimR, width * 0.2, style.rimSides, style.rim)
+  disc(radius * 0.18, width * 0.24, 6, null)
   return g
 }

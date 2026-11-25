@@ -6,14 +6,13 @@ import { CanvasTexture, Group, Mesh, MeshBasicMaterial, type MeshStandardMateria
 import { clamp, lerp, lerpAngle } from '../sim/math'
 import type { CarState } from '../sim/vehicle'
 import { tuning as T } from '../tuning'
-import { ARCH_RISE, buildCarShell, buildWheel } from './carModel'
+import type { CarDef } from '../cars'
+import { buildWheel } from './carModel'
 
 /** Body shell is modelled at 1x and scaled up; wheel positions come from tuning (already at full size). */
 const BODY_SCALE = 2
 /** Ride height: the body sits this far (m) above its wheels' rest position, about 5% of the car's height. */
 const RIDE_LIFT = 0.12
-/** How far a wheel may rise above its rest position relative to the body (m) before it would show through the arch. */
-const ARCH_CLEAR = ARCH_RISE * BODY_SCALE - 0.08
 
 function blobTexture(): CanvasTexture {
   const c = document.createElement('canvas')
@@ -41,11 +40,14 @@ export class CarView {
   private readonly reverseMat: MeshStandardMaterial | null
   /** Ground contact point under each wheel this frame (world), for tyre marks. FL, FR, RL, RR. */
   readonly wheelGround = [new Vector3(), new Vector3(), new Vector3(), new Vector3()]
+  /** How far a wheel may rise above its rest position relative to the body (m) before it would show through the arch. */
+  private readonly archClear: number
 
-  constructor() {
+  constructor(car: CarDef) {
     const R = T.wheelRadius
+    this.archClear = car.archRise * BODY_SCALE - 0.08
     // Body (car faces +z, local +x is the car's left).
-    const shell = buildCarShell(T.cgToFront / BODY_SCALE, -T.cgToRear / BODY_SCALE, R / BODY_SCALE)
+    const shell = car.buildShell(T.cgToFront / BODY_SCALE, -T.cgToRear / BODY_SCALE, R / BODY_SCALE)
     shell.scale.setScalar(BODY_SCALE)
     this.brakeMat = ((shell.getObjectByName('tail') as Mesh | undefined)?.material as MeshStandardMaterial) ?? null
     this.reverseMat = ((shell.getObjectByName('reverse') as Mesh | undefined)?.material as MeshStandardMaterial) ?? null
@@ -59,7 +61,7 @@ export class CarView {
       const left = (w & 1) === 0
       node.position.set(left ? halfTw : -halfTw, R, w < 2 ? T.cgToFront : -T.cgToRear)
       const steer = new Group()
-      const spin = buildWheel(R, 0.26 * BODY_SCALE, left ? 1 : -1)
+      const spin = buildWheel(R, 0.26 * BODY_SCALE, left ? 1 : -1, car.wheel)
       steer.add(spin)
       node.add(steer)
       this.root.add(node)
@@ -73,6 +75,12 @@ export class CarView {
     shadow.rotation.x = -Math.PI / 2
     shadow.renderOrder = 1
     this.shadowRoot.add(shadow)
+  }
+
+  /** Free GPU geometry (materials are shared or cheap and left to the GC). */
+  dispose(): void {
+    this.root.traverse((o) => (o as Mesh).geometry?.dispose())
+    this.shadowRoot.traverse((o) => (o as Mesh).geometry?.dispose())
   }
 
   update(p: CarState, c: CarState, t: number): void {
@@ -126,7 +134,7 @@ export class CarView {
     const srx = Math.sin(rx)
     for (let w = 0; w < 4; w++) {
       const n = this.wheelNodes[w].position
-      const cap = R + by + n.x * srz - n.z * srx + ARCH_CLEAR
+      const cap = R + by + n.x * srz - n.z * srx + this.archClear
       if (n.y > cap) n.y = cap
     }
 

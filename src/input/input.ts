@@ -7,6 +7,7 @@ export class Input {
   readonly touch: TouchControls | null
   private readonly keys = new Set<string>()
   private restart = false
+  private back = false
 
   constructor(parent: HTMLElement) {
     const coarse =
@@ -14,6 +15,9 @@ export class Input {
     this.touch = coarse ? new TouchControls(parent) : null
 
     window.addEventListener('keydown', (e) => {
+      // Typing in a text field (editor track name) isn't driving.
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.code === 'Escape') this.back = true
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault()
       if (e.code === 'KeyR' && !e.repeat) this.restart = true
       this.keys.add(e.code)
@@ -31,6 +35,13 @@ export class Input {
     const r = this.restart
     this.restart = false
     return r
+  }
+
+  /** Returns true once per Escape press. */
+  consumeBack(): boolean {
+    const b = this.back
+    this.back = false
+    return b
   }
 
   update(): Controls {

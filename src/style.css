@@ -16,7 +16,7 @@ body {
   position: fixed;
   inset: 0;
 }
-canvas {
+#app > canvas {
   display: block;
   position: fixed;
   inset: 0;
@@ -331,4 +331,424 @@ canvas {
   letter-spacing: 0.08em;
   opacity: 0.7;
   margin-top: 4px;
+}
+
+/* ── Palette (from the reference images) ─────────────── */
+:root {
+  --ink: #2c2d33;
+  --pale: #eae9f2;
+  --paper: #f7f6fb;
+  --road: #53555e;
+  --salmon: #e2705c;
+  --red: #e0563f;
+  --yellow: #efe27c;
+  --blue: #c4dde3;
+  --cream: #f2ebd9;
+}
+
+.hud-back {
+  position: fixed;
+  z-index: 20;
+  top: calc(58px + env(safe-area-inset-top));
+  right: calc(10px + env(safe-area-inset-right));
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 15px;
+  border: none;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  touch-action: none;
+}
+
+/* ── Menu ────────────────────────────────────────────── */
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.menu > * {
+  pointer-events: auto;
+}
+.menu-logo {
+  align-self: center;
+  margin-top: calc(18px + env(safe-area-inset-top));
+  text-align: center;
+  pointer-events: none;
+}
+.menu-logo b {
+  display: block;
+  font-size: clamp(54px, 17vw, 96px);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -0.02em;
+  line-height: 0.9;
+  color: var(--ink);
+  transform: skewX(-6deg);
+  text-shadow: 4px 4px 0 var(--yellow);
+}
+.stripes {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 8px auto 0;
+  width: 86%;
+  transform: skewX(-24deg);
+}
+.stripes i {
+  display: block;
+  height: 6px;
+}
+.stripes i:nth-child(1) {
+  background: var(--yellow);
+}
+.stripes i:nth-child(2) {
+  background: var(--red);
+}
+.stripes i:nth-child(3) {
+  background: var(--ink);
+  height: 3px;
+}
+.menu-panel {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 560px;
+  box-sizing: border-box;
+  padding: 12px 0 calc(14px + env(safe-area-inset-bottom));
+  background: rgba(247, 246, 251, 0.94);
+  border-top: 4px solid var(--ink);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -6px 30px rgba(44, 45, 51, 0.15);
+}
+.menu-panel h3 {
+  margin: 4px 16px 6px;
+  font-size: 13px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.18em;
+  color: var(--ink);
+}
+.menu-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px 16px 10px;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+.menu-row::-webkit-scrollbar {
+  display: none;
+}
+.card {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px 9px;
+  border: 3px solid transparent;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 0 rgba(44, 45, 51, 0.12);
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.card.sel {
+  border-color: var(--ink);
+  box-shadow: 4px 4px 0 var(--yellow);
+}
+.card b {
+  font-size: 15px;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.card small {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.6;
+}
+.track-card {
+  width: 118px;
+}
+.track-card canvas {
+  display: block;
+  width: 98px;
+  height: 92px;
+  border-radius: 8px;
+  background: var(--pale);
+  margin-bottom: 4px;
+}
+.track-card.add {
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 3px dashed rgba(44, 45, 51, 0.3);
+  box-shadow: none;
+}
+.track-card.add span {
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 1;
+}
+.car-card {
+  width: 196px;
+}
+.car-card svg {
+  width: 120px;
+  height: 52px;
+  margin: 2px 0 4px;
+}
+.car-card small {
+  min-height: 2.4em;
+}
+.stats {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr 1fr 1fr 1fr;
+  gap: 3px 3px;
+  align-items: center;
+  width: 100%;
+  margin-top: 4px;
+}
+.stats span {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  margin-right: 4px;
+}
+.stats i {
+  height: 7px;
+  border-radius: 2px;
+  background: rgba(44, 45, 51, 0.12);
+  transform: skewX(-20deg);
+}
+.stats i.on {
+  background: var(--red);
+}
+.menu-actions {
+  display: flex;
+  gap: 10px;
+  padding: 6px 16px 0;
+}
+.menu-actions button {
+  font: inherit;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  cursor: pointer;
+}
+.menu-edit {
+  flex: 1;
+  height: 58px;
+  font-size: 15px;
+  background: #fff;
+  color: var(--ink);
+}
+.menu-race {
+  flex: 2;
+  height: 58px;
+  font-size: 28px;
+  background: var(--red);
+  color: #fff;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+.menu-race:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+/* ── Editor ──────────────────────────────────────────── */
+.ed {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  color: var(--ink);
+}
+.ed > * {
+  pointer-events: auto;
+}
+.ed button {
+  font: inherit;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: var(--ink);
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  padding: 0 10px;
+  height: 36px;
+  cursor: pointer;
+}
+.ed button.hot {
+  background: var(--red);
+  color: #fff;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.ed button.danger {
+  color: var(--red);
+  border-color: var(--red);
+}
+.ed button:disabled {
+  opacity: 0.35;
+}
+.ed-top,
+.ed-tools,
+.ed-more {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 6px;
+  padding: 0 10px;
+}
+.ed-top {
+  top: calc(8px + env(safe-area-inset-top));
+}
+.ed-tools {
+  top: calc(52px + env(safe-area-inset-top));
+}
+.ed-more {
+  top: calc(96px + env(safe-area-inset-top));
+  flex-wrap: wrap;
+}
+.ed-name {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--paper);
+  user-select: text;
+  -webkit-user-select: text;
+}
+.ed-tools button {
+  flex: 1;
+  font-size: 12px;
+  padding: 0 4px;
+}
+.ed-info {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: calc(188px + env(safe-area-inset-bottom));
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+}
+.ed-info b {
+  font-weight: 900;
+}
+.ed-info .warn {
+  color: var(--red);
+  font-weight: 900;
+}
+.ed-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+  background: rgba(247, 246, 251, 0.94);
+  border-top: 3px solid var(--ink);
+}
+.ed-attrs {
+  display: flex;
+  gap: 10px;
+  padding: 0 10px 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.ed-chips {
+  display: flex;
+  gap: 4px;
+}
+.ed .chip {
+  height: 30px;
+  font-size: 11px;
+  border-radius: 15px;
+  padding: 0 9px;
+}
+.ed .chip.on {
+  background: var(--ink);
+  color: #fff;
+}
+.ed .chip.s-tarmac.on {
+  background: var(--road);
+}
+.ed .chip.s-gravel.on {
+  background: #b98d5d;
+  border-color: #8a6540;
+}
+.ed .chip.s-grass.on {
+  background: #6f9f45;
+  border-color: #4c7a2b;
+}
+.ed-pieces {
+  display: flex;
+  gap: 6px;
+  padding: 0 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+.ed-pieces::-webkit-scrollbar {
+  display: none;
+}
+.ed-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: none;
+}
+.ed-turn button {
+  height: 40px;
+  width: 54px;
+  padding: 0;
+}
+.ed-turn button.on {
+  background: var(--yellow);
+}
+.ed .ed-piece {
+  flex: none;
+  width: 72px;
+  height: 84px;
+  padding: 4px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--pale);
+}
+.ed-piece svg {
+  width: 50px;
+  height: 50px;
+}
+.ed-piece span {
+  font-size: 10px;
+  white-space: nowrap;
+}
+.ed .ed-piece:active {
+  background: var(--yellow);
 }

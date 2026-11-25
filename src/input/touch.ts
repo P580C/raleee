@@ -69,6 +69,12 @@ export class TouchControls {
     this.refreshMode()
   }
 
+  /** Hidden (and inert) outside a race. */
+  setVisible(v: boolean): void {
+    this.layer.style.display = v ? '' : 'none'
+    if (!v) this.releaseAll()
+  }
+
   /** Call after changing settings.steerMode. */
   refreshMode(): void {
     this.hint.textContent = settings.steerMode === 'drag' ? '◀  drag to steer  ▶' : '◀ left      right ▶'

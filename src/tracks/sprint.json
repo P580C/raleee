@@ -1,0 +1,21 @@
+{"format":"pieces","name":"Sprint","heading":225,"pieces":[
+    {"k":"straight"},
+    {"k":"straight"},
+    {"k":"bend45","t":"R"},
+    {"k":"straight"},
+    {"k":"bend90","t":"L"},
+    {"k":"straight"},
+    {"k":"bend90","t":"R"},
+    {"k":"straight"},
+    {"k":"straight"},
+    {"k":"bend45","t":"L"},
+    {"k":"straight","rise":2.5,"surface":"gravel"},
+    {"k":"straight","rise":-2.5},
+    {"k":"bend45","t":"R"},
+    {"k":"small90","t":"L"},
+    {"k":"small90","t":"R"},
+    {"k":"bend45","t":"L","surface":"tarmac"},
+    {"k":"straight"},
+    {"k":"straight"}
+  ]
+}
