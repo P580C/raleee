@@ -19,6 +19,31 @@ export interface TrackPoint {
   finish?: boolean
 }
 
+/** A roundabout: ring road round an island with four arms, centred at (x, z). The centreline runs through it. */
+export interface JunctionData {
+  x: number
+  z: number
+  e: number
+  /** Heading (degrees) of the entry: the arms point along it, against it and to both sides. */
+  deg: number
+  exit: 'L' | 'R' | 'S'
+  surface: SurfaceName
+  /** Centre to the end of each arm (m). */
+  reach: number
+  /** Ring centreline radius (m). */
+  ring: number
+}
+
+/** JunctionData plus what queries and meshes need. */
+export interface Junction extends JunctionData {
+  /** Arm directions (unit, outward): ahead, behind, right, left of the entry heading. */
+  ax: number[]
+  az: number[]
+  rIn: number
+  rOut: number
+  surfIdx: number
+}
+
 export interface TrackData {
   name: string
   /** Road width (m). */
@@ -31,6 +56,8 @@ export interface TrackData {
   /** Distance along the track (m) of the start line. */
   start?: number
   points: TrackPoint[]
+  /** Roundabouts (from piece stages). */
+  junctions?: JunctionData[]
 }
 
 export interface GroundSample {
@@ -89,6 +116,7 @@ export class Track {
   readonly island: number
   /** Scenery the car can hit. Filled in by whoever places scenery (static after that). */
   obstacles: Obstacle[] = []
+  readonly junctions: Junction[]
   readonly n: number
   readonly length: number
   readonly startIdx: number
@@ -118,6 +146,20 @@ export class Track {
     this.width = data.width
     this.verge = data.verge
     this.island = data.island
+    const halfW = data.width / 2
+    this.junctions = (data.junctions ?? []).map((j) => {
+      const h = (j.deg * Math.PI) / 180
+      const fx = Math.sin(h)
+      const fz = Math.cos(h)
+      return {
+        ...j,
+        ax: [fx, -fx, -fz, fz],
+        az: [fz, -fz, fx, -fx],
+        rIn: j.ring - halfW,
+        rOut: j.ring + halfW,
+        surfIdx: Math.max(0, SURFACES.indexOf(j.surface)),
+      }
+    })
     const P = data.points
     const np = P.length
     if (np < (data.closed ? 3 : 2)) throw new Error('Track needs more points')
@@ -350,5 +392,34 @@ export class Track {
     out.wTarmac = rt * roadness
     out.wGravel = rg * roadness
     out.wGrass = rr * roadness + (1 - roadness)
+    if (this.junctions.length) this.junctionGround(x, z, out)
+  }
+
+  /** Roundabouts: the whole ring and all four arms are road, not just the driving line through them. */
+  private junctionGround(x: number, z: number, out: GroundSample): void {
+    const half = this.width * 0.5
+    const v = this.verge
+    for (const j of this.junctions) {
+      const dx = x - j.x
+      const dz = z - j.z
+      const lim = j.reach + v
+      const d2 = dx * dx + dz * dz
+      if (d2 > lim * lim) continue
+      const d = Math.sqrt(d2)
+      // Distance outside the ring's road (negative on it); the island inside is off-road.
+      let r = 1 - smoothstep(-0.2, v * 0.8, Math.max(j.rIn - d, d - j.rOut))
+      for (let k = 0; k < 4; k++) {
+        const along = dx * j.ax[k] + dz * j.az[k]
+        // Arms run from the ring out to the piece edge (as drawn), never across the island.
+        if (along < j.rOut - 3 || along > j.reach + 0.5) continue
+        const lat = Math.abs(dx * j.az[k] - dz * j.ax[k])
+        r = Math.max(r, 1 - smoothstep(half - 0.2, half + v * 0.8, lat))
+      }
+      if (r <= out.roadness) continue
+      out.roadness = r
+      out.wTarmac = j.surfIdx === 0 ? r : 0
+      out.wGravel = j.surfIdx === 1 ? r : 0
+      out.wGrass = (j.surfIdx === 2 ? r : 0) + (1 - r)
+    }
   }
 }

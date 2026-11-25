@@ -143,6 +143,10 @@ export const tuning = {
   grassGrip: 0.45,
   grassSpeed: 0.7,
   grassDrag: 0.16,
+  /** Off the track: speed kept when leaving it, and the top speed off-road (fractions). */
+  offroadSpeed: 0.5,
+  /** How hard leaving the track slows the car to offroadSpeed (m/s²). */
+  offroadBrake: 22,
 
   // ── Air ────────────────────────────────────────────────
   /** Vertical gravity for jumps (arcade, heavier than real). */

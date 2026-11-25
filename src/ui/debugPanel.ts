@@ -89,6 +89,8 @@ const GROUPS: [string, Def[]][] = [
       ['grassGrip', 0.1, 1.5, 0.01],
       ['grassSpeed', 0.3, 1.2, 0.01],
       ['grassDrag', 0, 1, 0.01],
+      ['offroadSpeed', 0.2, 1, 0.01],
+      ['offroadBrake', 0, 40, 0.5],
     ],
   ],
   [

@@ -48,7 +48,10 @@ const BAD_COLOR = '#e0563f'
 function pieceIcon(kind: PieceKind, turn: Turn): string {
   const spec = PIECES[kind]
   let d: string
-  if (spec.angle === 0) d = 'M22 40 L22 6'
+  if (kind === 'roundabout') {
+    const exit = turn === 'L' ? 'M12 20 L1 20' : turn === 'R' ? 'M32 20 L43 20' : 'M22 10 L22 1'
+    d = `M22 43 L22 30 M32 20 A10 10 0 1 0 12 20 A10 10 0 1 0 32 20 ${exit}`
+  } else if (spec.angle === 0) d = 'M22 40 L22 6'
   else {
     const r = kind === 'small90' ? 11 : kind === 'bend90' ? 19 : 27
     const th = (spec.angle * Math.PI) / 180
@@ -89,7 +92,10 @@ export class Editor {
   private data: PieceTrackData = { format: 'pieces', name: '', heading: 225, pieces: [] }
   private id: string | null = null
   private sel = -1
+  /** Turn toggle: L / R, or S (straight on, roundabouts only). */
   private turn: Turn = 'L'
+  /** The last L / R picked: what new bends use while the toggle is on S. */
+  private bendTurn: 'L' | 'R' = 'L'
   private surface: SurfaceName = 'tarmac'
   private track: Track | null = null
   private layout: PieceLayout | null = null
@@ -248,14 +254,17 @@ export class Editor {
         this.change(() => {
           const kind = v as PieceKind
           const p: Piece = { k: kind, surface: this.surface }
-          if (PIECES[kind].angle) p.t = this.turn
+          if (kind === 'roundabout') p.t = this.turn
+          else if (PIECES[kind].angle) p.t = this.bendTurn
           this.data.pieces.splice(this.sel + 1, 0, p)
           this.sel++
         })
         return
       case 'turn':
         this.turn = v as Turn
-        if (this.selPiece && PIECES[this.selPiece.k].angle) this.change(() => (this.selPiece!.t = this.turn))
+        if (v !== 'S') this.bendTurn = v as 'L' | 'R'
+        if (this.selPiece?.k === 'roundabout') this.change(() => (this.selPiece!.t = this.turn))
+        else if (this.selPiece && PIECES[this.selPiece.k].angle && v !== 'S') this.change(() => (this.selPiece!.t = this.turn))
         else this.renderBar()
         return
       case 'surface':
@@ -266,6 +275,10 @@ export class Editor {
       case 'level':
         if (!this.selPiece) {
           this.flash('Select a piece to ramp it')
+          return
+        }
+        if (this.selPiece.k === 'roundabout') {
+          this.flash('Roundabouts stay level')
           return
         }
         this.change(() => {
@@ -416,8 +429,11 @@ export class Editor {
     const sp = this.selPiece
     const turnBtn = (t: Turn, label: string) => `<button data-a="turn" data-v="${t}" class="${this.turn === t ? 'on' : ''}">${label}</button>`
     this.piecesEl.innerHTML =
-      `<div class="ed-turn">${turnBtn('L', '◀ L')}${turnBtn('R', 'R ▶')}</div>` +
-      PIECE_KINDS.map((k) => `<button data-a="piece" data-v="${k}" class="ed-piece">${pieceIcon(k, this.turn)}<span>${PIECES[k].label}</span></button>`).join('')
+      `<div class="ed-turn">${turnBtn('L', '◀ L')}${turnBtn('S', '▲')}${turnBtn('R', 'R ▶')}</div>` +
+      PIECE_KINDS.map(
+        (k) =>
+          `<button data-a="piece" data-v="${k}" class="ed-piece">${pieceIcon(k, k === 'roundabout' ? this.turn : this.bendTurn)}<span>${PIECES[k].label}</span></button>`,
+      ).join('')
     const surf = sp?.surface ?? this.surface
     const rise = sp?.rise ?? 0
     this.attrsEl.innerHTML =
@@ -427,10 +443,13 @@ export class Editor {
         [0, 'LEVEL'],
         [1, '▲ UP'],
       ]
-        .map(([v, l]) => `<button data-a="level" data-v="${v}" class="chip ${sp && Math.sign(rise) === v ? 'on' : ''}" ${sp ? '' : 'disabled'}>${l}</button>`)
+        .map(([v, l]) => `<button data-a="level" data-v="${v}" class="chip ${sp && Math.sign(rise) === v ? 'on' : ''}" ${sp && sp.k !== 'roundabout' ? '' : 'disabled'}>${l}</button>`)
         .join('')}</div>`
     const len = this.layout ? this.layout.pieceS.at(-1)! - this.layout.pieceS[0] : 0
-    const what = sp ? `${PIECES[sp.k].label}${sp.t ? ` ${sp.t}` : ''} selected (#${this.sel + 1})` : 'Start line selected'
+    const exitName = { L: 'exit left', R: 'exit right', S: 'straight on' }
+    const what = sp
+      ? `${PIECES[sp.k].label}${sp.t ? ` ${sp.k === 'roundabout' ? exitName[sp.t] : sp.t}` : ''} selected (#${this.sel + 1})`
+      : 'Start line selected'
     this.infoEl.innerHTML =
       `<b>${this.data.pieces.length}</b> pieces · <b>${(len / 1000).toFixed(2)}</b> km · ${escapeHtml(what)}` +
       (this.overlaps.size ? ` · <span class="warn">${this.overlaps.size} overlapping</span>` : '')
@@ -553,6 +572,7 @@ export class Editor {
     if (this.selPiece) {
       this.surface = this.selPiece.surface ?? this.surface
       if (this.selPiece.t) this.turn = this.selPiece.t
+      if (this.selPiece.t && this.selPiece.t !== 'S') this.bendTurn = this.selPiece.t
     }
     this.rebuild()
   }

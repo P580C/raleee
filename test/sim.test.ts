@@ -4,7 +4,7 @@ import { convexHull, makeObstacle } from '../src/sim/obstacles'
 import { makeGroundSample, Track, type TrackData } from '../src/sim/track'
 import { CarState, placeCar, SIM_DT, stepCar, type Controls } from '../src/sim/vehicle'
 import { tuning } from '../src/tuning'
-import { findOverlaps, layoutPieces, LEVEL, parsePieces, PIECES, piecesToTrackData, type Piece, type PieceTrackData } from '../src/sim/pieces'
+import { findOverlaps, layoutPieces, LEVEL, parsePieces, PIECES, ROUNDABOUT, piecesToTrackData, type Piece, type PieceTrackData } from '../src/sim/pieces'
 import valley from '../src/tracks/valley.json'
 import sprint from '../src/tracks/sprint.json'
 
@@ -20,6 +20,8 @@ function straight(surface: 'tarmac' | 'gravel' | 'grass', extra: Partial<TrackDa
       { x: 0, z: 400, e: 0 },
       { x: 0, z: 800, e: 0 },
       { x: 0, z: 1200, e: 0 },
+      // Long enough that 25 s flat out never runs off the end (off the track now costs half your speed).
+      { x: 0, z: 3200, e: 0 },
     ],
     ...extra,
   })
@@ -67,6 +69,38 @@ describe('vehicle', () => {
     run(t, s, go, 20)
     expect(s.speed).toBeLessThan(tuning.topSpeed)
     expect(s.speed).toBeGreaterThan(tuning.topSpeed * 0.85)
+  })
+
+  it('leaving the track halves your speed, then holds you to half top speed', () => {
+    const t = straight('tarmac', { island: 400 })
+    const s = new CarState()
+    placeCar(s, t, 200)
+    // Flat out, pointing straight off the side of the road.
+    s.heading = Math.PI / 2
+    s.vx = 40
+    s.vz = 0
+    s.speed = 40
+    let entry = 0
+    let lowest = Infinity
+    let lowAt = 0
+    let time = 0
+    run(t, s, go, 2.5, (c) => {
+      time += SIM_DT
+      if (c.offTrack && !entry) entry = Math.hypot(c.vx, c.vz)
+      if (entry && c.speed < lowest) {
+        lowest = c.speed
+        lowAt = time
+      }
+    })
+    expect(entry).toBeGreaterThan(30)
+    expect(s.offTrack).toBe(true)
+    // Down to half the speed it left the road at, within about a second.
+    expect(lowest).toBeLessThan(entry * tuning.offroadSpeed + 0.5)
+    expect(lowAt).toBeLessThan(1.5)
+    // Keep going: it may build back up, but only to half top speed.
+    run(t, s, go, 8)
+    expect(s.speed).toBeLessThan(tuning.topSpeed * tuning.offroadSpeed + 0.5)
+    expect(s.speed).toBeGreaterThan(tuning.topSpeed * tuning.offroadSpeed * 0.6)
   })
 
   it('gravel has a lower top speed than tarmac', () => {
@@ -365,3 +399,69 @@ describe('track pieces', () => {
     }
   })
 })
+
+describe('roundabouts', () => {
+  const data = (t: 'L' | 'R' | 'S'): PieceTrackData => ({ format: 'pieces', name: 'rb', heading: 0, pieces: [{ k: 'roundabout', t }, { k: 'straight' }] })
+
+  it('exits left, right or straight on, ending where a 90 bend or two straights would', () => {
+    const C = ROUNDABOUT.reach
+    const want = { L: [C, C, 90], R: [-C, C, 270], S: [0, 2 * C, 0] } as const
+    for (const t of ['L', 'R', 'S'] as const) {
+      const end = layoutPieces(data(t)).ends[0]
+      expect(end.x).toBeCloseTo(want[t][0], 6)
+      expect(end.z).toBeCloseTo(want[t][1], 6)
+      expect(end.deg).toBe(want[t][2])
+    }
+  })
+
+  it('has a smooth driving line (no jumps between points, gentle direction changes)', () => {
+    for (const t of ['L', 'R', 'S'] as const) {
+      const p = layoutPieces(data(t)).piecePts[0]
+      // Only the driving line: the ring / arm footprint points are appended after it.
+      const line: number[][] = []
+      for (let i = 0; i < p.length; i += 3) line.push([p[i], p[i + 1]])
+      const drive = line.slice(0, line.length - 18)
+      for (let i = 1; i < drive.length; i++) expect(Math.hypot(drive[i][0] - drive[i - 1][0], drive[i][1] - drive[i - 1][1])).toBeLessThan(4.5)
+      for (let i = 2; i < drive.length; i++) {
+        const a = Math.atan2(drive[i - 1][0] - drive[i - 2][0], drive[i - 1][1] - drive[i - 2][1])
+        const b = Math.atan2(drive[i][0] - drive[i - 1][0], drive[i][1] - drive[i - 1][1])
+        expect(Math.abs(wrap(b - a))).toBeLessThan(0.5)
+      }
+    }
+  })
+
+  it('counts the whole ring and every arm as road, the island as grass', () => {
+    const t = new Track(piecesToTrackData(data('L')))
+    const g = makeGroundSample()
+    const C = ROUNDABOUT.reach
+    // Far side of the ring from the driving line (centre is at (0, C)); the unused right arm; the island.
+    t.query(-ROUNDABOUT.ring, C, -1, g)
+    expect(g.roadness).toBeGreaterThan(0.95)
+    t.query(-C + 2, C, -1, g)
+    expect(g.roadness).toBeGreaterThan(0.95)
+    t.query(2, C + 2, -1, g)
+    expect(g.wGrass).toBeGreaterThan(0.9)
+  })
+
+  it('can be driven through', () => {
+    const t = new Track(piecesToTrackData({ format: 'pieces', name: 'rb', heading: 225, pieces: parsePieces('S OS S S') }))
+    const s = new CarState()
+    placeCar(s, t, t.startIdx)
+    let offRoad = 0
+    for (let i = 0; i < Math.round(25 / SIM_DT); i++) {
+      const j = Math.min(t.n - 1, s.trackIdx + 8)
+      const want = Math.atan2(t.px[j] - s.x, t.pz[j] - s.z)
+      const travel = s.speed > 3 ? Math.atan2(s.vx, s.vz) : s.heading
+      const c: Controls = { throttle: s.speed < 14 ? 1 : 0, steer: Math.max(-1, Math.min(1, wrap(travel - want) * 4)), handbrake: false, brake: 0 }
+      stepCar(s, c, t, SIM_DT)
+      if (s.wheelsOnGrass >= 2) offRoad++
+      if (s.trackS > t.finishS) break
+    }
+    expect(s.trackS).toBeGreaterThan(t.finishS)
+    expect(offRoad * SIM_DT).toBeLessThan(0.5)
+  })
+})
+
+function wrap(a: number): number {
+  return Math.atan2(Math.sin(a), Math.cos(a))
+}

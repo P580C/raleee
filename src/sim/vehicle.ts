@@ -84,6 +84,9 @@ export class CarState {
   hitImpact = 0
   /** Driving backwards (brake held at standstill). */
   reversing = false
+  /** Off the track (half or more of the car off the road): braked down to `offTarget`. */
+  offTrack = false
+  offTarget = 0
   /** Brake lamps: 0..1 (footbrake while moving forward). */
   brakeLamp = 0
   /** Skid strength for the tyre marks, 0..1, front and rear axle. */
@@ -134,6 +137,8 @@ export class CarState {
     this.landImpact = o.landImpact
     this.hitImpact = o.hitImpact
     this.reversing = o.reversing
+    this.offTrack = o.offTrack
+    this.offTarget = o.offTarget
     this.brakeLamp = o.brakeLamp
     this.skidF = o.skidF
     this.skidR = o.skidR
@@ -232,6 +237,8 @@ export function placeCar(s: CarState, track: Track, idx: number): void {
   s.landImpact = 0
   s.hitImpact = 0
   s.reversing = false
+  s.offTrack = false
+  s.offTarget = 0
   s.brakeLamp = s.skidF = s.skidR = 0
   s.wheelH.fill(s.y)
 }
@@ -346,6 +353,7 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
   let surfR = 0
   let speedFactor = 0
   let grass = 0
+  let offRoad = 0
   for (let w = 0; w < 4; w++) {
     const lon = w < 2 ? a : -b
     const lat = w & 1 ? halfTw : -halfTw
@@ -357,10 +365,20 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
     wheelDrag[w] = q.wTarmac * T.tarmacDrag + q.wGravel * T.gravelDrag + q.wGrass * T.grassDrag
     speedFactor += 0.25 * (q.wTarmac * T.tarmacSpeed + q.wGravel * T.gravelSpeed + q.wGrass * T.grassSpeed)
     if (q.wGrass > 0.5) grass++
+    offRoad += (1 - q.roadness) * 0.25
     if (w < 2) surfF += grip * 0.5
     else surfR += grip * 0.5
   }
   s.wheelsOnGrass = grass
+  // Leaving the track costs half your speed: on the way off, the car is braked to offroadSpeed of what it
+  // was doing; after that it can go no faster than offroadSpeed of top speed until it's back on the road.
+  const offCap = T.topSpeed * T.offroadSpeed
+  if (offRoad >= 0.5) {
+    if (!s.offTrack) {
+      s.offTrack = true
+      s.offTarget = Math.min(offCap, Math.hypot(s.vx, s.vz) * T.offroadSpeed)
+    }
+  } else if (offRoad < 0.25) s.offTrack = false
 
   // ── Vertical: follow the ground, or fly ─────────────────
   const vyBefore = s.vy
@@ -415,7 +433,7 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
     let accF = 0
     let accEngine = 0
     if (c.throttle > 0) {
-      const vmax = T.topSpeed * speedFactor
+      const vmax = s.offTrack ? Math.min(T.topSpeed * speedFactor, offCap) : T.topSpeed * speedFactor
       const kv = vF > 0 ? speed0 / vmax : 0
       accEngine = (c.throttle * T.engineForce * Math.max(0, 1 - kv * kv)) / T.mass
       accF += accEngine
@@ -435,6 +453,16 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
       }
     }
     if (c.handbrake) accF -= dirSign * Math.min(T.handbrakeBrake, absVF * 2)
+    if (s.offTrack) {
+      if (absVF > s.offTarget + 0.2) {
+        // No drive while being slowed: the throttle can't hold the car above the target.
+        accF -= accEngine
+        accEngine = 0
+        accF -= dirSign * Math.min(T.offroadBrake, (absVF - s.offTarget) * 20)
+      }
+      // Once down to it, the limit relaxes to the off-road top speed.
+      else s.offTarget = offCap
+    }
     let dragSum = 0
     let tug = 0
     for (let w = 0; w < 4; w++) {

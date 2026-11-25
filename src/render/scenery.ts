@@ -56,6 +56,7 @@ export async function buildScenery(track: Track): Promise<{ group: Group; obstac
     for (let j = 0; j < track.n && clear; j += 4) {
       if (Math.hypot(track.px[j] - x, track.pz[j] - z) < half + radius + 1) clear = false
     }
+    for (const j of track.junctions) if (Math.hypot(j.x - x, j.z - z) < j.reach + radius + 1) clear = false
     if (clear) placements.push(x, track.pe[i], z, rand() * Math.PI * 2)
     side = -side
   }
