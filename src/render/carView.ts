@@ -6,12 +6,14 @@ import { CanvasTexture, Group, Mesh, MeshBasicMaterial, type MeshStandardMateria
 import { clamp, lerp, lerpAngle } from '../sim/math'
 import type { CarState } from '../sim/vehicle'
 import { tuning as T } from '../tuning'
-import { buildCarShell, buildWheel } from './carModel'
+import { ARCH_RISE, buildCarShell, buildWheel } from './carModel'
 
 /** Body shell is modelled at 1x and scaled up; wheel positions come from tuning (already at full size). */
 const BODY_SCALE = 2
+/** Ride height: the body sits this far (m) above its wheels' rest position, about 5% of the car's height. */
+const RIDE_LIFT = 0.12
 /** How far a wheel may rise above its rest position relative to the body (m) before it would show through the arch. */
-const ARCH_CLEAR = 0.26
+const ARCH_CLEAR = ARCH_RISE * BODY_SCALE - 0.08
 
 function blobTexture(): CanvasTexture {
   const c = document.createElement('canvas')
@@ -112,7 +114,7 @@ export class CarView {
       this.wheelGround[w].set(x + n.x * ch + n.z * sh, lerp(p.wheelH[w], c.wheelH[w], t), z - n.x * sh + n.z * ch)
     }
 
-    const by = sum * 0.25 + lerp(p.heave, c.heave, t)
+    const by = RIDE_LIFT + sum * 0.25 + lerp(p.heave, c.heave, t)
     const rx = lerp(p.groundPitch, c.groundPitch, t) + lerp(p.pitch, c.pitch, t)
     const rz = lerp(p.groundRoll, c.groundRoll, t) + lerp(p.roll, c.roll, t)
     this.body.position.y = by

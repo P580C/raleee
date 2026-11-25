@@ -141,6 +141,9 @@ function waist(z: number): number {
   return front + (back - front) * t
 }
 
+/** How far the arch top sits above the top of the tyre at rest (1x scale). */
+export const ARCH_RISE = 0.12
+
 /**
  * The body shell at 1x scale (about 4.0 m long, 1.85 m wide). `wheelZ` are the front and rear axle
  * positions at 1x, `wheelR` the wheel radius at 1x.
@@ -200,28 +203,28 @@ export function buildCarShell(wheelZF: number, wheelZR: number, wheelR: number):
 
   // ── Box-flared wheel arches (pale, with the yellow band carried round the bottom) ──
   // Wide and tall enough that the tyre stays inside on full bump (carView also caps wheel rise to the arch).
-  const flareW = 0.27
+  const flareW = 0.19
   for (const zc of [wheelZF, wheelZR]) {
-    const l = wheelR + 0.22
+    const l = wheelR + 0.155
     for (const sx of [1, -1]) {
       const xi = sx * (W - 0.02)
       const xo = sx * (W + flareW)
-      const top = wheelR * 2 + 0.17
+      const top = wheelR * 2 + ARCH_RISE
       const yb = wheelR - 0.02
       const topIn = Math.max(top + 0.02, waist(zc) + 0.02)
       b.hexa('body', [
         [xi, yb, zc + l], [xo, yb, zc + l - 0.05], [xo, yb, zc - l + 0.05], [xi, yb, zc - l],
-        [xi, topIn, zc + l - 0.08], [xo - sx * 0.04, top, zc + l - 0.14], [xo - sx * 0.04, top, zc - l + 0.14], [xi, topIn, zc - l + 0.08],
+        [xi, topIn, zc + l - 0.06], [xo - sx * 0.03, top, zc + l - 0.1], [xo - sx * 0.03, top, zc - l + 0.1], [xi, topIn, zc - l + 0.06],
       ], ['bottom'])
     }
   }
   // Side skirts between the arches.
   for (const sx of [1, -1]) {
-    const z0 = wheelZF - wheelR - 0.22
-    const z1 = wheelZR + wheelR + 0.22
+    const z0 = wheelZF - wheelR - 0.155
+    const z1 = wheelZR + wheelR + 0.155
     b.hexa('yellow', [
-      [sx * W, sill, z0], [sx * (W + 0.16), sill, z0], [sx * (W + 0.16), sill, z1], [sx * W, sill, z1],
-      [sx * W, band, z0], [sx * (W + 0.12), band, z0], [sx * (W + 0.12), band, z1], [sx * W, band, z1],
+      [sx * W, sill, z0], [sx * (W + 0.11), sill, z0], [sx * (W + 0.11), sill, z1], [sx * W, sill, z1],
+      [sx * W, band, z0], [sx * (W + 0.085), band, z0], [sx * (W + 0.085), band, z1], [sx * W, band, z1],
     ], ['bottom'])
   }
 
