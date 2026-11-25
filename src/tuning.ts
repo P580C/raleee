@@ -143,6 +143,8 @@ export const tuning = {
   grassGrip: 0.45,
   grassSpeed: 0.7,
   grassDrag: 0.16,
+  /** The off-track slowdown starts once the car's centre is this far beyond the road edge (m): one car width. */
+  offroadMargin: 3.6,
   /** Off the track: speed kept when leaving it, and the top speed off-road (fractions). */
   offroadSpeed: 0.5,
   /** How hard leaving the track slows the car to offroadSpeed (m/s²). */

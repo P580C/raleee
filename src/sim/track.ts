@@ -71,13 +71,15 @@ export interface GroundSample {
   onIsland: boolean
   /** 0..1, how much of the road (vs off-road) is under this point. */
   roadness: number
+  /** Distance (m) outside the nearest road edge; 0 on the road. */
+  offDist: number
   wTarmac: number
   wGravel: number
   wGrass: number
 }
 
 export function makeGroundSample(): GroundSample {
-  return { idx: -1, s: 0, lateral: 0, height: 0, onIsland: true, roadness: 1, wTarmac: 1, wGravel: 0, wGrass: 0 }
+  return { idx: -1, s: 0, lateral: 0, height: 0, onIsland: true, roadness: 1, offDist: 0, wTarmac: 1, wGravel: 0, wGrass: 0 }
 }
 
 const SPACING = 1.0
@@ -386,6 +388,7 @@ export class Track {
     const half = this.width * 0.5
     const roadness = 1 - smoothstep(half - 0.2, half + this.verge * 0.8, absLat)
     out.roadness = roadness
+    out.offDist = Math.max(0, absLat - half)
     const rt = this.wt[segA] + (this.wt[segB] - this.wt[segA]) * t
     const rg = this.wg[segA] + (this.wg[segB] - this.wg[segA]) * t
     const rr = this.wr[segA] + (this.wr[segB] - this.wr[segA]) * t
@@ -407,14 +410,18 @@ export class Track {
       if (d2 > lim * lim) continue
       const d = Math.sqrt(d2)
       // Distance outside the ring's road (negative on it); the island inside is off-road.
-      let r = 1 - smoothstep(-0.2, v * 0.8, Math.max(j.rIn - d, d - j.rOut))
+      const ringOff = Math.max(j.rIn - d, d - j.rOut)
+      let off = Math.max(0, ringOff)
+      let r = 1 - smoothstep(-0.2, v * 0.8, ringOff)
       for (let k = 0; k < 4; k++) {
         const along = dx * j.ax[k] + dz * j.az[k]
         // Arms run from the ring out to the piece edge (as drawn), never across the island.
         if (along < j.rOut - 3 || along > j.reach + 0.5) continue
         const lat = Math.abs(dx * j.az[k] - dz * j.ax[k])
         r = Math.max(r, 1 - smoothstep(half - 0.2, half + v * 0.8, lat))
+        off = Math.min(off, Math.max(0, lat - half))
       }
+      out.offDist = Math.min(out.offDist, off)
       if (r <= out.roadness) continue
       out.roadness = r
       out.wTarmac = j.surfIdx === 0 ? r : 0

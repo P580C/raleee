@@ -103,6 +103,23 @@ describe('vehicle', () => {
     expect(s.speed).toBeGreaterThan(tuning.topSpeed * tuning.offroadSpeed * 0.6)
   })
 
+  it('only slows once the car is more than one car width off the road', () => {
+    const t = straight('tarmac', { island: 400 })
+    for (const [beyond, slowed] of [[2, false], [6, true]] as const) {
+      const s = new CarState()
+      placeCar(s, t, 200)
+      s.x += t.width / 2 + beyond
+      s.vz = 40
+      s.vx = 0
+      let lowest = Infinity
+      run(t, s, go, 1, (c) => (lowest = Math.min(lowest, c.speed)))
+      expect(s.offTrack).toBe(slowed)
+      // Slowed: down to half of 40 m/s. Not slowed: barely loses anything.
+      if (slowed) expect(lowest).toBeLessThan(20.5)
+      else expect(lowest).toBeGreaterThan(30)
+    }
+  })
+
   it('gravel has a lower top speed than tarmac', () => {
     const a = new CarState()
     const b = new CarState()

@@ -353,7 +353,6 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
   let surfR = 0
   let speedFactor = 0
   let grass = 0
-  let offRoad = 0
   for (let w = 0; w < 4; w++) {
     const lon = w < 2 ? a : -b
     const lat = w & 1 ? halfTw : -halfTw
@@ -365,20 +364,20 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
     wheelDrag[w] = q.wTarmac * T.tarmacDrag + q.wGravel * T.gravelDrag + q.wGrass * T.grassDrag
     speedFactor += 0.25 * (q.wTarmac * T.tarmacSpeed + q.wGravel * T.gravelSpeed + q.wGrass * T.grassSpeed)
     if (q.wGrass > 0.5) grass++
-    offRoad += (1 - q.roadness) * 0.25
     if (w < 2) surfF += grip * 0.5
     else surfR += grip * 0.5
   }
   s.wheelsOnGrass = grass
-  // Leaving the track costs half your speed: on the way off, the car is braked to offroadSpeed of what it
-  // was doing; after that it can go no faster than offroadSpeed of top speed until it's back on the road.
+  // Leaving the track costs half your speed. Once the car is more than offroadMargin (one car width) beyond
+  // the road edge, it's braked to offroadSpeed of what it was doing; after that it can go no faster than
+  // offroadSpeed of top speed until it's back within the margin.
   const offCap = T.topSpeed * T.offroadSpeed
-  if (offRoad >= 0.5) {
+  if (centerQ.offDist > T.offroadMargin) {
     if (!s.offTrack) {
       s.offTrack = true
       s.offTarget = Math.min(offCap, Math.hypot(s.vx, s.vz) * T.offroadSpeed)
     }
-  } else if (offRoad < 0.25) s.offTrack = false
+  } else if (centerQ.offDist < T.offroadMargin - 0.5) s.offTrack = false
 
   // ── Vertical: follow the ground, or fly ─────────────────
   const vyBefore = s.vy
