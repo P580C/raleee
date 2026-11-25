@@ -40,13 +40,14 @@ export class Input {
     if (k.has('ArrowLeft') || k.has('KeyA')) steer -= 1
     if (k.has('ArrowRight') || k.has('KeyD')) steer += 1
     let throttle = k.has('ArrowUp') || k.has('KeyW') ? 1 : 0
-    const brake = k.has('ArrowDown') || k.has('KeyS') ? 1 : 0
+    let brake = k.has('ArrowDown') || k.has('KeyS') ? 1 : 0
     let hb = k.has('Space')
     const t = this.touch
     if (t) {
       if (t.steer !== 0) steer = t.steer
       if (t.go) throttle = 1
       if (t.handbrake) hb = true
+      if (t.brake) brake = 1
     }
     c.steer = Math.max(-1, Math.min(1, steer))
     c.brake = brake

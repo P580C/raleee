@@ -113,6 +113,25 @@ describe('vehicle', () => {
     expect(grav.dist / grav.v0 ** 2).toBeGreaterThan(tar.dist / tar.v0 ** 2)
   })
 
+  it('brakes to a stop, then reverses slowly, and throttle drives forward again', () => {
+    const t = straight('tarmac')
+    const s = new CarState()
+    placeCar(s, t, 2)
+    run(t, s, go, 4)
+    const brake: Controls = { throttle: 0, steer: 0, handbrake: false, brake: 1 }
+    let lampWhileStopping = 0
+    run(t, s, brake, 1, (st) => (lampWhileStopping = Math.max(lampWhileStopping, st.brakeLamp)))
+    expect(lampWhileStopping).toBe(1)
+    run(t, s, brake, 5)
+    expect(s.reversing).toBe(true)
+    expect(s.brakeLamp).toBe(0)
+    expect(s.forwardSpeed).toBeLessThan(-0.8 * tuning.reverseSpeed)
+    expect(s.forwardSpeed).toBeGreaterThanOrEqual(-tuning.reverseSpeed)
+    run(t, s, go, 3)
+    expect(s.reversing).toBe(false)
+    expect(s.forwardSpeed).toBeGreaterThan(5)
+  })
+
   it('handbrake + steer starts a drift that is recoverable', () => {
     // Wide road so the car stays on tarmac while sliding.
     const t = straight('tarmac', { width: 80, island: 100 })

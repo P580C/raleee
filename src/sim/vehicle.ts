@@ -24,7 +24,7 @@ export interface Controls {
   /** -1 (left) .. 1 (right) */
   steer: number
   handbrake: boolean
-  /** 0..1 footbrake. Overrides throttle. */
+  /** 0..1 footbrake. Overrides throttle. Held at (near) standstill it drives backwards. */
   brake: number
 }
 
@@ -82,6 +82,13 @@ export class CarState {
   landImpact = 0
   /** Biggest obstacle hit (closing speed, m/s) since last cleared by the game. */
   hitImpact = 0
+  /** Driving backwards (brake held at standstill). */
+  reversing = false
+  /** Brake lamps: 0..1 (footbrake while moving forward). */
+  brakeLamp = 0
+  /** Skid strength for the tyre marks, 0..1, front and rear axle. */
+  skidF = 0
+  skidR = 0
   /** Ground height under each wheel: FL, FR, RL, RR. */
   readonly wheelH = new Float64Array(4)
 
@@ -126,6 +133,10 @@ export class CarState {
     this.lateral = o.lateral
     this.landImpact = o.landImpact
     this.hitImpact = o.hitImpact
+    this.reversing = o.reversing
+    this.brakeLamp = o.brakeLamp
+    this.skidF = o.skidF
+    this.skidR = o.skidR
     this.wheelH.set(o.wheelH)
   }
 }
@@ -220,6 +231,8 @@ export function placeCar(s: CarState, track: Track, idx: number): void {
   s.lateral = 0
   s.landImpact = 0
   s.hitImpact = 0
+  s.reversing = false
+  s.brakeLamp = s.skidF = s.skidR = 0
   s.wheelH.fill(s.y)
 }
 
@@ -408,13 +421,20 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
       accF += accEngine
     }
     // Off-throttle: smooth engine braking that fades to nothing at standstill.
-    if (c.throttle < 0.05) accF -= dirSign * Math.min(T.autoBrake, absVF * 1.5)
-    if (c.handbrake) accF -= dirSign * Math.min(T.handbrakeBrake, absVF * 2)
-    // Footbrake: strong, scaled by surface grip (less bite on gravel/grass), eases off at a stop.
-    if (c.brake > 0) {
-      const bite = 0.35 + 0.65 * Math.min(1, (surfF + surfR) * 0.5)
-      accF -= dirSign * Math.min(c.brake * T.brakeDecel * bite, absVF * 6)
+    // Brake held at (near) standstill, or already rolling backwards: reverse gear.
+    s.reversing = c.brake > 0 && c.throttle < 0.05 && vF < T.reverseEngage
+    if (s.reversing) {
+      const back = Math.max(0, -vF) / T.reverseSpeed
+      accF -= (c.brake * T.reverseForce * Math.max(0, 1 - back * back)) / T.mass
+    } else {
+      if (c.throttle < 0.05) accF -= dirSign * Math.min(T.autoBrake, absVF * 1.5)
+      // Footbrake: strong, scaled by surface grip (less bite on gravel/grass), eases off at a stop.
+      if (c.brake > 0) {
+        const bite = 0.35 + 0.65 * Math.min(1, (surfF + surfR) * 0.5)
+        accF -= dirSign * Math.min(c.brake * T.brakeDecel * bite, absVF * 6)
+      }
     }
+    if (c.handbrake) accF -= dirSign * Math.min(T.handbrakeBrake, absVF * 2)
     let dragSum = 0
     let tug = 0
     for (let w = 0; w < 4; w++) {
@@ -539,6 +559,20 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
     const maxVis = T.steerVisual * (1 - 0.6 * Math.min(1, absVF / T.steerSpeedRef))
     const steerVis = s.steerInput * maxVis
     s.steerAngle = steerVis + (clamp(beta, -0.6, 0.6) - steerVis) * Math.max(slide, k) * T.counterSteerVisual
+  }
+
+  // ── Lamps and tyre marks (visual) ─────────────────────
+  s.brakeLamp = c.brake > 0 && !s.reversing ? c.brake : 0
+  if (s.grounded) {
+    const side = smoothstep(0.1, 0.35, Math.abs(beta)) * smoothstep(4, 10, speed)
+    const lock = c.brake > 0 && !s.reversing ? c.brake * smoothstep(12, 28, speed) * 0.6 : 0
+    // Four-wheel drive: a full-throttle launch spins all four tyres briefly.
+    const launch = c.throttle > 0.9 && vF >= 0 && vF < 12 ? (1 - vF / 12) * 0.7 : 0
+    const hand = c.handbrake ? smoothstep(2, 8, speed) : 0
+    s.skidF = Math.max(side * 0.8, lock, launch)
+    s.skidR = Math.max(side, lock, launch, hand)
+  } else {
+    s.skidF = s.skidR = 0
   }
 
   // ── Wheels spin ────────────────────────────────────────

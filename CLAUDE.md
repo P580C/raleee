@@ -43,7 +43,7 @@ Go - throttle. Held = accelerate.
 Steer - left / right.
 Handbrake - held = rear wheels lose most of their grip, car rotates into a drift. Release to regain grip.
 No throttle = gentle auto-brake (engine braking plus light drag), not a coast. The car should slow down noticeably but smoothly, never stop dead.
-No reverse in v1. If the car gets stuck or leaves the track, auto-reset onto the nearest track point after ~1.5 s (with a short fade).
+Brake - S / Down, or the BRAKE touch button above GO. Held at a standstill it reverses (slowly, ~25 km/h); throttle drives forward again. Brake lamps glow under braking, white reversing lamps in reverse. If the car gets stuck or leaves the track, auto-reset onto the nearest track point after ~1.5 s (with a short fade).
 
 Model
 
@@ -82,7 +82,7 @@ Left thumb: steer. Two large invisible zones (left half / right half of the bott
 Right thumb: a large GO button and a HANDBRAKE button just above/beside it, so the thumb can roll between them.
 Buttons are semi-transparent and placed so they never cover the road ahead of the car.
 Prevent page scroll, zoom, text selection and long-press menus. Use pointer events. Support multi-touch properly.
-Keyboard fallback for desktop testing: Up/W = go, Left/Right or A/D = steer, Space = handbrake, R = restart.
+Keyboard fallback for desktop testing: Up/W = go, Down/S = brake / reverse, Left/Right or A/D = steer, Space = handbrake, R = restart.
 Light haptics via navigator.vibrate where supported, on landing and on hitting grass.
 Tracks
 Tracks are data, not code. Each track is a JSON file containing a centreline spline (control points with x, z, elevation), road width, and per-segment surface type. Generate the road mesh, verges, shoulders and terrain islands from that data.

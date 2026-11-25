@@ -63,6 +63,13 @@ canvas {
   bottom: calc(118px + env(safe-area-inset-bottom));
   font-size: 13px;
 }
+.btn-br {
+  width: 82px;
+  height: 82px;
+  right: calc(37px + env(safe-area-inset-right));
+  bottom: calc(162px + env(safe-area-inset-bottom));
+  font-size: 13px;
+}
 .steer-hint {
   position: absolute;
   left: calc(18px + env(safe-area-inset-left));

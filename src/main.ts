@@ -7,6 +7,7 @@ import { CarView } from './render/carView'
 import { Lighting } from './render/lighting'
 import { look, LOOKS, loadLookOverrides } from './render/look'
 import { createScene } from './render/scene'
+import { SkidMarks } from './render/skidMarks'
 import { buildScenery, obstacleLines } from './render/scenery'
 import { buildTrackView } from './render/trackView'
 import { Track, type TrackData } from './sim/track'
@@ -38,6 +39,8 @@ scene.add(buildTrackView(track))
 const carView = new CarView()
 // Real shadows replace the blob shadow (carView.shadowRoot stays available as a cheap fallback).
 scene.add(carView.root)
+const skids = new SkidMarks()
+scene.add(skids.mesh)
 const rig = new CameraRig()
 const lighting = new Lighting(renderer, scene, rig.camera)
 buildScenery(track)
@@ -66,7 +69,7 @@ const fpsMeter =
     : null
 fpsMeter?.setLabel(lookName())
 // Dev aid (like the mini-game's window.brickSnap): poke the look from the console.
-if (debug) (window as unknown as Record<string, unknown>).raleee = { look, lighting, renderer }
+if (debug) (window as unknown as Record<string, unknown>).raleee = { look, lighting, renderer, skids, rig }
 rig.shakeEnabled = settings.cameraShake
 
 const input = new Input(app)
@@ -86,6 +89,7 @@ rig.snap(curr.x, curr.y, curr.z)
 const game = new Game(track, prev, curr, () => {
   carView.update(curr, curr, 1)
   rig.snap(curr.x, curr.y, curr.z)
+  skids.breakAll()
 })
 
 function resize(): void {
@@ -117,7 +121,10 @@ function frame(now: number): void {
   const dt = Math.min(frameMs / 1000, 0.25)
 
   const c = input.update()
-  if (input.consumeRestart()) game.restart()
+  if (input.consumeRestart()) {
+    game.restart()
+    skids.clear()
+  }
 
   // Fixed-timestep simulation; render interpolates between the last two states.
   const simStart = performance.now()
@@ -151,6 +158,7 @@ function frame(now: number): void {
 
   const alpha = acc / SIM_DT
   carView.update(prev, curr, alpha)
+  skids.update(carView.wheelGround, curr.skidF, curr.skidR)
   rig.update(dt, carView.pos.x, carView.pos.y, carView.pos.z, curr.vx, curr.vz)
   hud.setSpeed(curr.speed)
   hud.setTime(game.time, game.status === 'finished')

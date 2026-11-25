@@ -74,6 +74,8 @@ const GROUPS: [string, Def[]][] = [
       ['autoBrake', 0, 15, 0.1],
       ['handbrakeBrake', 0, 10, 0.1],
       ['brakeDecel', 0, 30, 0.5],
+      ['reverseForce', 0, 20000, 100],
+      ['reverseSpeed', 1, 20, 0.5],
       ['airDrag', 0, 3, 0.05],
     ],
   ],

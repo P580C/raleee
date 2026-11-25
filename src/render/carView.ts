@@ -2,7 +2,7 @@
  * The player's car: the procedural 4WD rally coupe from carModel.ts.
  * Hierarchy: root (position + yaw) → body (suspension pitch/roll/heave) and wheels.
  */
-import { CanvasTexture, Group, Mesh, MeshBasicMaterial, PlaneGeometry, Vector3 } from 'three'
+import { CanvasTexture, Group, Mesh, MeshBasicMaterial, type MeshStandardMaterial, PlaneGeometry, Vector3 } from 'three'
 import { clamp, lerp, lerpAngle } from '../sim/math'
 import type { CarState } from '../sim/vehicle'
 import { tuning as T } from '../tuning'
@@ -10,6 +10,8 @@ import { buildCarShell, buildWheel } from './carModel'
 
 /** Body shell is modelled at 1x and scaled up; wheel positions come from tuning (already at full size). */
 const BODY_SCALE = 2
+/** How far a wheel may rise above its rest position relative to the body (m) before it would show through the arch. */
+const ARCH_CLEAR = 0.26
 
 function blobTexture(): CanvasTexture {
   const c = document.createElement('canvas')
@@ -33,12 +35,18 @@ export class CarView {
   private readonly steerNodes: Group[] = []
   private readonly spinNodes: Group[] = []
   private readonly shadowMat: MeshBasicMaterial
+  private readonly brakeMat: MeshStandardMaterial | null
+  private readonly reverseMat: MeshStandardMaterial | null
+  /** Ground contact point under each wheel this frame (world), for tyre marks. FL, FR, RL, RR. */
+  readonly wheelGround = [new Vector3(), new Vector3(), new Vector3(), new Vector3()]
 
   constructor() {
     const R = T.wheelRadius
     // Body (car faces +z, local +x is the car's left).
     const shell = buildCarShell(T.cgToFront / BODY_SCALE, -T.cgToRear / BODY_SCALE, R / BODY_SCALE)
     shell.scale.setScalar(BODY_SCALE)
+    this.brakeMat = ((shell.getObjectByName('tail') as Mesh | undefined)?.material as MeshStandardMaterial) ?? null
+    this.reverseMat = ((shell.getObjectByName('reverse') as Mesh | undefined)?.material as MeshStandardMaterial) ?? null
     this.body.add(shell)
     this.root.add(this.body)
 
@@ -92,9 +100,33 @@ export class CarView {
     this.spinNodes[2].rotation.x = sr
     this.spinNodes[3].rotation.x = sr
 
-    this.body.position.y = sum * 0.25 + lerp(p.heave, c.heave, t)
-    this.body.rotation.x = lerp(p.groundPitch, c.groundPitch, t) + lerp(p.pitch, c.pitch, t)
-    this.body.rotation.z = lerp(p.groundRoll, c.groundRoll, t) + lerp(p.roll, c.roll, t)
+    // Lamps: brake lamps glow with the footbrake, white reversing lamps in reverse.
+    if (this.brakeMat) this.brakeMat.emissiveIntensity = 1.3 * lerp(p.brakeLamp, c.brakeLamp, t)
+    if (this.reverseMat) this.reverseMat.emissiveIntensity = c.reversing ? 1.2 : 0
+
+    // Where each tyre touches the ground (for skid marks).
+    const ch = Math.cos(heading)
+    const sh = Math.sin(heading)
+    for (let w = 0; w < 4; w++) {
+      const n = this.wheelNodes[w].position
+      this.wheelGround[w].set(x + n.x * ch + n.z * sh, lerp(p.wheelH[w], c.wheelH[w], t), z - n.x * sh + n.z * ch)
+    }
+
+    const by = sum * 0.25 + lerp(p.heave, c.heave, t)
+    const rx = lerp(p.groundPitch, c.groundPitch, t) + lerp(p.pitch, c.pitch, t)
+    const rz = lerp(p.groundRoll, c.groundRoll, t) + lerp(p.roll, c.roll, t)
+    this.body.position.y = by
+    this.body.rotation.x = rx
+    this.body.rotation.z = rz
+    // Keep each tyre inside its arch on full bump: the arch above a wheel at (wx, wz) sits at about
+    // by + wx*sin(roll) - wz*sin(pitch); the wheel may rise at most ARCH_CLEAR above its rest height there.
+    const srz = Math.sin(rz)
+    const srx = Math.sin(rx)
+    for (let w = 0; w < 4; w++) {
+      const n = this.wheelNodes[w].position
+      const cap = R + by + n.x * srz - n.z * srx + ARCH_CLEAR
+      if (n.y > cap) n.y = cap
+    }
 
     const gy = c.groundY > -Infinity ? c.groundY : y - 50
     const h = Math.max(0, y - gy)

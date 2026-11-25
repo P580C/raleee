@@ -16,7 +16,7 @@ export const tuning = {
 
   // ── Engine & brakes ────────────────────────────────────
   /** Drive force at standstill (N). Falls off towards top speed. */
-  engineForce: 21000,
+  engineForce: 25200,
   /** Top speed on tarmac (m/s). 60 m/s = 216 km/h. */
   topSpeed: 60,
   /** Deceleration with no throttle (m/s²). Fades out smoothly near standstill. */
@@ -26,6 +26,11 @@ export const tuning = {
   /** Footbrake deceleration on tarmac (m/s²), on top of auto-brake. Less on loose surfaces. */
   brakeDecel: 13,
   airDrag: 0.5,
+  /** Reverse: brake held below this forward speed (m/s) drives backwards. */
+  reverseEngage: 0.8,
+  /** Reverse drive force (N) and top reverse speed (m/s). 7 m/s = 25 km/h. */
+  reverseForce: 9000,
+  reverseSpeed: 7,
 
   // ── Steering ───────────────────────────────────────────
   /** Full-lock turn radius at walking pace (m). */

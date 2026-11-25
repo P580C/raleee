@@ -16,7 +16,8 @@ export const CAR_COLORS = {
   black: '#2b2e35',
   glass: '#5d8db0',
   light: '#fbf6e4',
-  tail: '#c8352c',
+  tail: '#9e2a24',
+  reverse: '#a9a7a2',
   amber: '#f0a640',
   tyre: '#2b2e35',
   rim: '#f3f3ef',
@@ -115,7 +116,15 @@ class Builder {
       const geo = new BufferGeometry()
       geo.setAttribute('position', new Float32BufferAttribute(arr, 3))
       geo.computeVertexNormals()
-      const m = new Mesh(geo, col === 'black' || col === 'tyre' ? matte({ color: CAR_COLORS[col], roughness: 0.6 }) : plastic(CAR_COLORS[col]))
+      // Lamps get their own (uncached) material so they can glow: CarView drives their emissive.
+      const mat =
+        col === 'tail' || col === 'reverse'
+          ? matte({ color: CAR_COLORS[col], roughness: 0.35, emissive: col === 'tail' ? '#ff1405' : '#fff6e0', emissiveIntensity: 0 })
+          : col === 'black' || col === 'tyre'
+            ? matte({ color: CAR_COLORS[col], roughness: 0.6 })
+            : plastic(CAR_COLORS[col])
+      const m = new Mesh(geo, mat)
+      m.name = col
       m.castShadow = true
       m.receiveShadow = true
       g.add(m)
@@ -190,27 +199,29 @@ export function buildCarShell(wheelZF: number, wheelZR: number, wheelR: number):
   }
 
   // ── Box-flared wheel arches (pale, with the yellow band carried round the bottom) ──
-  const flareW = 0.17
+  // Wide and tall enough that the tyre stays inside on full bump (carView also caps wheel rise to the arch).
+  const flareW = 0.27
   for (const zc of [wheelZF, wheelZR]) {
-    const l = wheelR + 0.14
+    const l = wheelR + 0.22
     for (const sx of [1, -1]) {
       const xi = sx * (W - 0.02)
       const xo = sx * (W + flareW)
-      const top = wheelR * 2 + 0.06
-      const yb = wheelR + 0.06
+      const top = wheelR * 2 + 0.17
+      const yb = wheelR - 0.02
+      const topIn = Math.max(top + 0.02, waist(zc) + 0.02)
       b.hexa('body', [
-        [xi, yb, zc + l], [xo, yb, zc + l - 0.04], [xo, yb, zc - l + 0.04], [xi, yb, zc - l],
-        [xi, Math.min(top + 0.06, waist(zc) - 0.02), zc + l - 0.06], [xo - sx * 0.03, top, zc + l - 0.1], [xo - sx * 0.03, top, zc - l + 0.1], [xi, Math.min(top + 0.06, waist(zc) - 0.02), zc - l + 0.06],
+        [xi, yb, zc + l], [xo, yb, zc + l - 0.05], [xo, yb, zc - l + 0.05], [xi, yb, zc - l],
+        [xi, topIn, zc + l - 0.08], [xo - sx * 0.04, top, zc + l - 0.14], [xo - sx * 0.04, top, zc - l + 0.14], [xi, topIn, zc - l + 0.08],
       ], ['bottom'])
     }
   }
   // Side skirts between the arches.
   for (const sx of [1, -1]) {
-    const z0 = wheelZF - wheelR - 0.14
-    const z1 = wheelZR + wheelR + 0.14
+    const z0 = wheelZF - wheelR - 0.22
+    const z1 = wheelZR + wheelR + 0.22
     b.hexa('yellow', [
-      [sx * W, sill, z0], [sx * (W + 0.1), sill, z0], [sx * (W + 0.1), sill, z1], [sx * W, sill, z1],
-      [sx * W, band, z0], [sx * (W + 0.06), band, z0], [sx * (W + 0.06), band, z1], [sx * W, band, z1],
+      [sx * W, sill, z0], [sx * (W + 0.16), sill, z0], [sx * (W + 0.16), sill, z1], [sx * W, sill, z1],
+      [sx * W, band, z0], [sx * (W + 0.12), band, z0], [sx * (W + 0.12), band, z1], [sx * W, band, z1],
     ], ['bottom'])
   }
 
@@ -244,6 +255,7 @@ export function buildCarShell(wheelZF: number, wheelZR: number, wheelR: number):
 
   // ── Tail: full-width tail lamps, black lower panel, raised wing ──
   b.box('tail', W * 2 - 0.1, 0.13, 0.04, 0, 0.68, ZR - 0.01, ['front'])
+  for (const sx of [1, -1]) b.box('reverse', 0.16, 0.09, 0.03, sx * 0.26, 0.68, ZR - 0.035, ['front'])
   b.box('black', W * 2 + 0.02, 0.1, 0.08, 0, sill + 0.04, ZR + 0.02)
   // Low boot-lid wing on two short stands.
   const wingY = waist(ZR) + 0.13

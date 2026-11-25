@@ -1,7 +1,8 @@
 /**
  * Portrait touch controls.
  * Left thumb: steering (analogue drag strip, or two digital zones).
- * Right thumb: big GO button with HANDBRAKE just above-left so the thumb can roll between them.
+ * Right thumb: big GO button, BRAKE (hold at a stop to reverse) above it and HANDBRAKE above-left, so
+ * the thumb can roll between them.
  * One full-screen layer handles every pointer, so a thumb can slide from button to button.
  */
 import { settings } from '../ui/settings'
@@ -11,7 +12,7 @@ interface Ptr {
   anchorX: number
   x: number
   y: number
-  /** 0 none, 1 GO, 2 HANDBRAKE */
+  /** 0 none, 1 GO, 2 HANDBRAKE, 3 BRAKE */
   btn: number
   order: number
 }
@@ -26,18 +27,21 @@ export class TouchControls {
   steer = 0
   go = false
   handbrake = false
+  brake = false
   /** True once any touch has been seen (used to hide keyboard hints, etc). */
   active = false
 
   private readonly layer: HTMLDivElement
   private readonly goEl: HTMLDivElement
   private readonly hbEl: HTMLDivElement
+  private readonly brEl: HTMLDivElement
   private readonly strip: HTMLDivElement
   private readonly knob: HTMLDivElement
   private readonly hint: HTMLDivElement
   private readonly ptrs = new Map<number, Ptr>()
   private goC: Circle = { x: 0, y: 0, r: 0 }
   private hbC: Circle = { x: 0, y: 0, r: 0 }
+  private brC: Circle = { x: 0, y: 0, r: 0 }
   private counter = 0
 
   constructor(parent: HTMLElement) {
@@ -46,7 +50,9 @@ export class TouchControls {
     this.strip = el('div', 'steer-strip', this.layer)
     this.knob = el('div', 'steer-knob', this.strip)
     this.hbEl = el('div', 'btn btn-hb', this.layer)
-    this.hbEl.textContent = 'BRAKE'
+    this.hbEl.textContent = 'HAND'
+    this.brEl = el('div', 'btn btn-br', this.layer)
+    this.brEl.textContent = 'BRAKE'
     this.goEl = el('div', 'btn btn-go', this.layer)
     this.goEl.textContent = 'GO'
 
@@ -79,15 +85,18 @@ export class TouchControls {
     }
     circ(this.goEl, this.goC)
     circ(this.hbEl, this.hbC)
+    circ(this.brEl, this.brC)
   }
 
   private hitButton(x: number, y: number): number {
     const dg = Math.hypot(x - this.goC.x, y - this.goC.y) - this.goC.r
     const dh = Math.hypot(x - this.hbC.x, y - this.hbC.y) - this.hbC.r
-    // Generous padding; when both are in reach pick the nearer edge.
+    const db = Math.hypot(x - this.brC.x, y - this.brC.y) - this.brC.r
+    // Generous padding; when several are in reach pick the nearest edge.
     const pad = 22
-    if (dg > pad && dh > pad) return 0
-    return dg <= dh ? 1 : 2
+    const best = Math.min(dg, dh, db)
+    if (best > pad) return 0
+    return best === dg ? 1 : best === dh ? 2 : 3
   }
 
   private down(e: PointerEvent): void {
@@ -134,16 +143,20 @@ export class TouchControls {
     let steerP: Ptr | null = null
     let go = false
     let hb = false
+    let br = false
     for (const p of this.ptrs.values()) {
       if (p.role === 'steer') {
         if (!steerP || p.order > steerP.order) steerP = p
       } else if (p.btn === 1) go = true
       else if (p.btn === 2) hb = true
+      else if (p.btn === 3) br = true
     }
     this.go = go
     this.handbrake = hb
+    this.brake = br
     this.goEl.classList.toggle('on', go)
     this.hbEl.classList.toggle('on', hb)
+    this.brEl.classList.toggle('on', br)
 
     if (!steerP) {
       this.steer = 0
