@@ -13,7 +13,7 @@ const STEP = 0.4
 /** Below this skid strength nothing is laid (and the strip breaks). */
 const MIN_SKID = 0.08
 /** Darkest mark opacity. */
-const MAX_ALPHA = 0.42
+const MAX_ALPHA = 0.8
 /** Marks float just above the road surface. */
 const LIFT = 0.06
 
@@ -81,9 +81,9 @@ export class SkidMarks {
     P[i * 3] = x
     P[i * 3 + 1] = y
     P[i * 3 + 2] = z
-    C[i * 4] = 0.13
-    C[i * 4 + 1] = 0.13
-    C[i * 4 + 2] = 0.15
+    C[i * 4] = 0.02
+    C[i * 4 + 1] = 0.02
+    C[i * 4 + 2] = 0.03
     C[i * 4 + 3] = alpha
   }
 
