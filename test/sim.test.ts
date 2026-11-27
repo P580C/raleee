@@ -4,11 +4,12 @@ import { convexHull, makeObstacle } from '../src/sim/obstacles'
 import { makeGroundSample, Track, type TrackData } from '../src/sim/track'
 import { CarState, placeCar, SIM_DT, stepCar, type Controls } from '../src/sim/vehicle'
 import { tuning } from '../src/tuning'
+import { NIGHT_CHANCE, rollTime, rollWeather, weatherGrip } from '../src/sim/weather'
 import { findOverlaps, layoutPieces, LEVEL, parsePieces, PIECES, ROUNDABOUT, piecesToTrackData, type Piece, type PieceTrackData } from '../src/sim/pieces'
 import valley from '../src/tracks/valley.json'
 import sprint from '../src/tracks/sprint.json'
 
-function straight(surface: 'tarmac' | 'gravel' | 'grass', extra: Partial<TrackData> = {}): Track {
+function straight(surface: 'tarmac' | 'gravel', extra: Partial<TrackData> = {}): Track {
   return new Track({
     name: 'straight',
     width: 10,
@@ -533,5 +534,85 @@ describe('dust', () => {
     } finally {
       tuning.driveFront = before
     }
+  })
+})
+
+describe('surfaces', () => {
+  it('an old stage with a grass road loads it as gravel (grass is only off-road now)', () => {
+    const t = straight('grass' as 'gravel')
+    const g = makeGroundSample()
+    t.query(0, 100, -1, g)
+    expect(g.wGravel).toBeCloseTo(1)
+    expect(g.wGrass).toBeCloseTo(0)
+    t.query(20, 100, -1, g)
+    expect(g.wGrass).toBeCloseTo(1)
+  })
+})
+
+describe('weather', () => {
+  it('rolls every kind, and ?weather= forces one', () => {
+    expect([0, 0.3, 0.6, 0.99].map((r) => rollWeather(r))).toEqual(['clear', 'rain', 'snow', 'fog'])
+    expect(rollWeather(0, 'snow')).toBe('snow')
+    expect(rollWeather(0.99, 'nonsense')).toBe('fog')
+  })
+
+  it('night is its own roll (any weather), and ?time= forces it', () => {
+    expect(rollTime(0)).toBe('night')
+    expect(rollTime(NIGHT_CHANCE)).toBe('day')
+    expect(rollTime(0, 'day')).toBe('day')
+    expect(rollTime(0.99, 'night')).toBe('night')
+  })
+
+  it('rain takes 10% of the grip and snow 25%; fog none', () => {
+    expect(weatherGrip('clear')).toBe(1)
+    expect(weatherGrip('fog')).toBe(1)
+    expect(weatherGrip('rain')).toBeCloseTo(0.9)
+    expect(weatherGrip('snow')).toBeCloseTo(0.75)
+  })
+
+  it('less grip stops the car over a longer distance', () => {
+    const brake: Controls = { throttle: 0, steer: 0, handbrake: false, brake: 1 }
+    const stopFrom = (grip: number) => {
+      const t = straight('tarmac')
+      t.weatherGrip = grip
+      const s = new CarState()
+      placeCar(s, t, 2)
+      run(t, s, go, 6)
+      const v0 = s.speed
+      const s0 = s.trackS
+      for (let i = 0; i < 2000 && s.speed > 0.5; i++) stepCar(s, brake, t, SIM_DT)
+      return (s.trackS - s0) / v0 ** 2
+    }
+    expect(stopFrom(weatherGrip('snow'))).toBeGreaterThan(stopFrom(1) * 1.05)
+  })
+
+  it('is felt below the limit: snow accelerates slower and turns less at part lock', () => {
+    const drive = (grip: number) => {
+      const t = straight('tarmac', { width: 200, island: 300 })
+      t.weatherGrip = grip
+      const s = new CarState()
+      placeCar(s, t, 20)
+      let i = 0
+      for (; i < 1200 && s.speed < 25; i++) stepCar(s, go, t, SIM_DT)
+      const h0 = s.heading
+      run(t, s, { throttle: 0.6, steer: 0.5, handbrake: false, brake: 0 }, 1)
+      return { accel: i * SIM_DT, turn: Math.abs(s.heading - h0) }
+    }
+    const dry = drive(1)
+    const snow = drive(weatherGrip('snow'))
+    expect(snow.accel).toBeGreaterThan(dry.accel * 1.2)
+    expect(snow.turn).toBeLessThan(dry.turn * 0.85)
+  })
+})
+
+describe('lamps', () => {
+  it('the handbrake lights the brake lamps too', () => {
+    const t = straight('tarmac')
+    const s = new CarState()
+    placeCar(s, t, 2)
+    run(t, s, go, 1)
+    expect(s.brakeLamp).toBe(0)
+    run(t, s, { throttle: 1, steer: 0, handbrake: true, brake: 0 }, SIM_DT)
+    expect(s.brakeLamp).toBe(1)
   })
 })

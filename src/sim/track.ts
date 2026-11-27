@@ -5,8 +5,15 @@
 import { smoothstep } from './math'
 import type { Obstacle } from './obstacles'
 
-export type SurfaceName = 'tarmac' | 'gravel' | 'grass'
-export const SURFACES: readonly SurfaceName[] = ['tarmac', 'gravel', 'grass']
+/** Road surfaces. (Off the road is grass: see GroundSample.wGrass.) */
+export type SurfaceName = 'tarmac' | 'gravel'
+export const SURFACES: readonly SurfaceName[] = ['tarmac', 'gravel']
+
+/** A stored surface name as a road surface. Older stages may say 'grass' (no longer a road surface): that's gravel now. */
+export function roadSurface(s: string | undefined): SurfaceName | undefined {
+  if (!s) return undefined
+  return s === 'tarmac' ? 'tarmac' : 'gravel'
+}
 
 export interface TrackPoint {
   x: number
@@ -128,6 +135,8 @@ export class Track {
   readonly width: number
   readonly verge: number
   readonly island: number
+  /** Tyre grip multiplier from the weather (sim/weather.ts), set when a race loads. 1 = dry. */
+  weatherGrip = 1
   /** Scenery the car can hit. Filled in by whoever places scenery (static after that). */
   obstacles: Obstacle[] = []
   readonly junctions: Junction[]
@@ -147,7 +156,6 @@ export class Track {
   /** Road surface weights per sample (blended along the track). */
   readonly wt: Float32Array
   readonly wg: Float32Array
-  readonly wr: Float32Array
 
   // query scratch
   private _t = 0
@@ -171,7 +179,7 @@ export class Track {
         az: [fz, -fz, fx, -fx],
         rIn: j.ring - halfW,
         rOut: j.ring + halfW,
-        surfIdx: Math.max(0, SURFACES.indexOf(j.surface)),
+        surfIdx: SURFACES.indexOf(roadSurface(j.surface) ?? 'tarmac'),
       }
     })
     const P = data.points
@@ -188,7 +196,7 @@ export class Track {
     const segSurf: number[] = []
     let cur: SurfaceName = 'tarmac'
     for (let i = 0; i < np; i++) {
-      if (P[i].surface) cur = P[i].surface!
+      cur = roadSurface(P[i].surface) ?? cur
       segSurf.push(SURFACES.indexOf(cur))
     }
 
@@ -257,8 +265,7 @@ export class Track {
     // Blend surfaces along the track so transitions aren't a hard line.
     this.wt = new Float32Array(n)
     this.wg = new Float32Array(n)
-    this.wr = new Float32Array(n)
-    const outs = [this.wt, this.wg, this.wr]
+    const outs = [this.wt, this.wg]
     for (let i = 0; i < n; i++) {
       let cnt = 0
       for (let k = -SURFACE_BLEND; k <= SURFACE_BLEND; k++) {
@@ -403,10 +410,9 @@ export class Track {
     out.offDist = Math.max(0, absLat - half)
     const rt = this.wt[segA] + (this.wt[segB] - this.wt[segA]) * t
     const rg = this.wg[segA] + (this.wg[segB] - this.wg[segA]) * t
-    const rr = this.wr[segA] + (this.wr[segB] - this.wr[segA]) * t
     out.wTarmac = rt * roadness
     out.wGravel = rg * roadness
-    out.wGrass = rr * roadness + (1 - roadness)
+    out.wGrass = 1 - roadness
     if (this.junctions.length) this.junctionGround(x, z, out)
   }
 
@@ -438,7 +444,7 @@ export class Track {
       out.roadness = r
       out.wTarmac = j.surfIdx === 0 ? r : 0
       out.wGravel = j.surfIdx === 1 ? r : 0
-      out.wGrass = (j.surfIdx === 2 ? r : 0) + (1 - r)
+      out.wGrass = 1 - r
     }
   }
 }

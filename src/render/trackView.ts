@@ -17,7 +17,6 @@ const C = {
   /** Renders as #53555E in the sun. */
   tarmac: new Color('#676466'),
   gravel: new Color('#c39a6b'),
-  roadGrass: new Color('#86b85a'),
   checkB: new Color('#26272c'),
 }
 /** Stripes (edge lines, centre dashes, white chequers): white + emissive renders as #E5F1F0 in the sun. */
@@ -106,12 +105,7 @@ export function buildTrackView(track: Track): Group {
   const roadColor = (i: number, out: Color) => {
     const a = track.wt[i]
     const b = track.wg[i]
-    const c = track.wr[i]
-    return out.setRGB(
-      C.tarmac.r * a + C.gravel.r * b + C.roadGrass.r * c,
-      C.tarmac.g * a + C.gravel.g * b + C.roadGrass.g * c,
-      C.tarmac.b * a + C.gravel.b * b + C.roadGrass.b * c,
-    )
+    return out.setRGB(C.tarmac.r * a + C.gravel.r * b, C.tarmac.g * a + C.gravel.g * b, C.tarmac.b * a + C.gravel.b * b)
   }
 
   // Road slab sides (the road floats on its own over the floor).
@@ -190,7 +184,7 @@ export function buildTrackView(track: Track): Group {
 }
 
 const ISLAND = new Color('#86b85a')
-const SURFACE_COLORS = [C.tarmac, C.gravel, C.roadGrass]
+const SURFACE_COLORS = [C.tarmac, C.gravel]
 
 type P3 = [number, number, number]
 

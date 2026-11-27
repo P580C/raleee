@@ -87,7 +87,7 @@ export class CarState {
   /** Off the track (half or more of the car off the road): braked down to `offTarget`. */
   offTrack = false
   offTarget = 0
-  /** Brake lamps: 0..1 (footbrake while moving forward). */
+  /** Brake lamps: 0..1 (footbrake while not reversing, or handbrake). */
   brakeLamp = 0
   /** Skid strength for the tyre marks, 0..1, front and rear axle. */
   skidF = 0
@@ -381,6 +381,13 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
     else surfR += grip * 0.5
   }
   s.wheelsOnGrass = grass
+  // Weather (rain, snow) scales every tyre force: lateral grip and the slide limits here, and below the
+  // ones that are capped on a dry road (steering bite, braking, traction), so it's felt below the limit too.
+  const wg = track.weatherGrip
+  const dryF = surfF
+  const dryR = surfR
+  surfF *= wg
+  surfR *= wg
   // Leaving the track costs half your speed. Once the car is more than offroadMargin (one car width) beyond
   // the road edge, it's braked to offroadSpeed of what it was doing; after that it can go no faster than
   // offroadSpeed of top speed until it's back within the margin.
@@ -447,7 +454,7 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
     if (c.throttle > 0) {
       const vmax = s.offTrack ? Math.min(T.topSpeed * speedFactor, offCap) : T.topSpeed * speedFactor
       const kv = vF > 0 ? speed0 / vmax : 0
-      accEngine = (c.throttle * T.engineForce * Math.max(0, 1 - kv * kv)) / T.mass
+      accEngine = (c.throttle * T.engineForce * Math.max(0, 1 - kv * kv) * wg) / T.mass
       accF += accEngine
     }
     // Off-throttle: smooth engine braking that fades to nothing at standstill.
@@ -460,7 +467,7 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
       if (c.throttle < 0.05) accF -= dirSign * Math.min(T.autoBrake, absVF * 1.5)
       // Footbrake: strong, scaled by surface grip (less bite on gravel/grass), eases off at a stop.
       if (c.brake > 0) {
-        const bite = 0.35 + 0.65 * Math.min(1, (surfF + surfR) * 0.5)
+        const bite = (0.35 + 0.65 * Math.min(1, (dryF + dryR) * 0.5)) * wg
         accF -= dirSign * Math.min(c.brake * T.brakeDecel * bite, absVF * 6)
       }
     }
@@ -533,7 +540,7 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
     if (k === 0) s.driftRate = s.pathRate
 
     // ── Yaw ───────────────────────────────────────────────
-    const frontAuth = clamp(T.gripFront * surfF, 0.15, 1)
+    const frontAuth = clamp(T.gripFront * dryF, 0.15, 1) * wg
     const sr = Math.min(1, absVF / T.steerSpeedRef)
     const R = T.turnRadiusLow + (T.turnRadiusHigh - T.turnRadiusLow) * sr * sr
     let yawGrip = ((s.steerInput * absVF) / R) * frontAuth * dirSign
@@ -607,7 +614,8 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
   }
 
   // ── Lamps and tyre marks (visual) ─────────────────────
-  s.brakeLamp = c.brake > 0 && !s.reversing ? c.brake : 0
+  // Brake lamps: footbrake (not while reversing) or handbrake.
+  s.brakeLamp = s.reversing ? 0 : Math.max(c.brake, c.handbrake ? 1 : 0)
   if (s.grounded) {
     const side = smoothstep(0.1, 0.35, Math.abs(beta)) * smoothstep(4, 10, speed)
     const lock = c.brake > 0 && !s.reversing ? c.brake * smoothstep(12, 28, speed) * 0.6 : 0

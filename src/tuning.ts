@@ -156,6 +156,9 @@ export const tuning = {
   offroadSpeed: 0.5,
   /** How hard leaving the track slows the car to offroadSpeed (m/s²). */
   offroadBrake: 22,
+  /** Weather grip (x all surfaces): rain and snow. */
+  rainGrip: 0.9,
+  snowGrip: 0.75,
   /** Dust puffs from the driven tyres on loose ground: x the base rate (0 = off). */
   dustAmount: 1,
 

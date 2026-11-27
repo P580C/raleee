@@ -303,6 +303,39 @@ body {
   color: #2c2d33;
   pointer-events: none;
 }
+.hud-weather {
+  position: fixed;
+  z-index: 20;
+  top: calc(46px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  color: #2c2d33;
+  opacity: 0.7;
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* Fog: a car-centred gradient over the stage, under the touch controls and HUD. */
+.fog {
+  position: fixed;
+  z-index: 5;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+/* Night: light HUD text over the dark stage. */
+.night .hud-time,
+.night .hud-speed,
+.night .hud-weather {
+  color: #e9ecf6;
+}
+.night .hud-restart {
+  background: rgba(233, 236, 246, 0.18);
+  color: #e9ecf6;
+}
 .hud-finish {
   position: fixed;
   z-index: 20;
@@ -683,10 +716,6 @@ body {
 .ed .chip.s-gravel.on {
   background: #b98d5d;
   border-color: #8a6540;
-}
-.ed .chip.s-grass.on {
-  background: #6f9f45;
-  border-color: #4c7a2b;
 }
 .ed-tabs {
   display: flex;

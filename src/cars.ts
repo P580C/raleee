@@ -20,6 +20,9 @@ export interface CarDef {
   wheel: WheelStyle
   /** Arch top above the tyre at rest (1x model scale): caps how far a wheel may rise into the body. */
   archRise: number
+  /** Lamp centres on the shell (1x model scale, +x = car's left, +z = forward) for glows and beams.
+   *  Head lamps: [x, y, z, size]; tail lamps: [x, y, z]. */
+  lamps: { head: [number, number, number, number][]; tail: [number, number, number][] }
   /** Handling overrides on top of tuning.ts. */
   tuning: Partial<Tuning>
 }
@@ -34,6 +37,11 @@ export const CARS: CarDef[] = [
     buildShell: buildCarShell,
     wheel: RALLY_WHEEL,
     archRise: ARCH_RISE,
+    // Square headlamps plus the four spot lamps on the bumper.
+    lamps: {
+      head: [[0.48, 0.56, 2.0, 1], [-0.48, 0.56, 2.0, 1], [0.18, 0.34, 2.06, 0.6], [-0.18, 0.34, 2.06, 0.6], [0.4, 0.34, 2.06, 0.6], [-0.4, 0.34, 2.06, 0.6]],
+      tail: [[0.515, 0.68, -2.0], [-0.515, 0.68, -2.0]],
+    },
     tuning: {},
   },
   {
@@ -45,6 +53,11 @@ export const CARS: CarDef[] = [
     buildShell: buildHatchShell,
     wheel: HATCH_WHEEL,
     archRise: HATCH_ARCH_RISE,
+    // Twin round headlamps each side.
+    lamps: {
+      head: [[0.4, 0.55, 1.98, 0.8], [-0.4, 0.55, 1.98, 0.8], [0.6, 0.55, 1.98, 0.8], [-0.6, 0.55, 1.98, 0.8]],
+      tail: [[0.52, 0.62, -1.94], [-0.52, 0.62, -1.94]],
+    },
     // Two-wheel drive: no 4WD pull, less power, and a rear that lets go sooner.
     tuning: { awdPull: 0, driveFront: 0, engineForce: 17000, topSpeed: 52, gripFront: 1.7, gripRear: 1.85, slideGrip: 0.8, frontLatGrip: 0, handbrakeFrontGrip: 0 },
   },

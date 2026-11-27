@@ -29,7 +29,7 @@ import {
   type PieceTrackData,
   type Turn,
 } from '../sim/pieces'
-import { makeGroundSample, SURFACES, Track, type SceneryItem, type SurfaceName } from '../sim/track'
+import { makeGroundSample, roadSurface, SURFACES, Track, type SceneryItem, type SurfaceName } from '../sim/track'
 import { deleteUserTrack, findTrack, isPieceTrack, listTracks, saveUserTrack } from '../tracks/registry'
 import { escapeHtml } from '../ui/menu'
 
@@ -93,7 +93,7 @@ function pieceIcon(kind: PieceKind, turn: Turn): string {
 function explicitSurfaces(pieces: Piece[]): Piece[] {
   let cur: SurfaceName = 'tarmac'
   return pieces.map((p) => {
-    cur = p.surface ?? cur
+    cur = roadSurface(p.surface) ?? cur
     return { ...p, surface: cur }
   })
 }

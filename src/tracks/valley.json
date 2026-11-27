@@ -41,7 +41,7 @@
     {"k":"small90","t":"R"},
     {"k":"straight"},
     {"k":"bend45","t":"L"},
-    {"k":"straight","surface":"grass"},
+    {"k":"straight","surface":"gravel"},
     {"k":"straight","surface":"tarmac"},
     {"k":"straight","rise":-2.5},
     {"k":"straight","rise":-2.5},

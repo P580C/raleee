@@ -19,6 +19,7 @@ export class Hud {
   private acc = 0
   private readonly els: HTMLElement[] = []
   private readonly backEl: HTMLButtonElement
+  private readonly weatherEl: HTMLDivElement
 
   constructor(parent: HTMLElement, onRestart: () => void, onBack: () => void, debug: boolean) {
     const speed = document.createElement('div')
@@ -58,7 +59,11 @@ export class Hud {
     })
     parent.appendChild(back)
     this.backEl = back
-    this.els.push(speed, time, restart, back)
+    const weather = document.createElement('div')
+    weather.className = 'hud-weather'
+    parent.appendChild(weather)
+    this.weatherEl = weather
+    this.els.push(speed, time, restart, back, weather)
 
     const fade = document.createElement('div')
     fade.className = 'fade'
@@ -83,6 +88,11 @@ export class Hud {
   /** The back button's label: MENU, or EDIT when test-driving from the editor. */
   setBackLabel(label: string): void {
     this.backEl.textContent = label
+  }
+
+  /** Today's weather, under the timer. */
+  setWeather(label: string): void {
+    this.weatherEl.textContent = label
   }
 
   setSpeed(ms: number): void {

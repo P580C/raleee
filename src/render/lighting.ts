@@ -140,6 +140,9 @@ export class Lighting {
   private readonly bokeh: BokehPass
   private readonly bloom: UnrealBloomPass
   private appliedShadow: string | null = null
+  private sunScale = 1
+  private ambientScale = 1
+  private readonly sunTint = new Color(0xffffff)
   private readonly sunDir = new Vector3()
   private readonly lightRight = new Vector3()
   private readonly lightUp = new Vector3()
@@ -189,6 +192,18 @@ export class Lighting {
     this.bloom = new UnrealBloomPass(new Vector2(size.x, size.y), 0, 0.4, 0.9)
     this.composer.addPass(this.bloom)
     this.composer.addPass(new OutputPass())
+    this.apply()
+  }
+
+  /**
+   * Weather and time of day: dims the sun (and its shadows and bounce), tints it (moonlight), scales the
+   * sky / environment fill, and changes the floor colour. (1, BACKGROUND, 1, white) = a clear day.
+   */
+  setWeather(sunScale: number, background: string, ambientScale = 1, sunTint: string = '#ffffff'): void {
+    this.sunScale = sunScale
+    this.ambientScale = ambientScale
+    this.sunTint.set(sunTint)
+    ;(this.scene.background as Color).set(background)
     this.apply()
   }
 
@@ -268,9 +283,9 @@ export class Lighting {
     this.lightUp.copy(this.sunDir).cross(this.lightRight).normalize()
     this.applySky()
     const sun = this.sun
-    sun.color.lerpColors(WHITE, GOLDEN, look.sunWarmth)
-    sun.intensity = look.sunIntensity
-    sun.shadow.intensity = look.shadowStrength
+    sun.color.lerpColors(WHITE, GOLDEN, look.sunWarmth).multiply(this.sunTint)
+    sun.intensity = look.sunIntensity * this.sunScale
+    sun.shadow.intensity = look.shadowStrength * this.sunScale
     const spread = Math.tan(MathUtils.degToRad(look.sunSize))
     if (look.shadowType === 'vsm') {
       const texel = (2 * SHADOW_HALF) / SHADOW_MAP
@@ -281,11 +296,11 @@ export class Lighting {
     } else {
       sun.shadow.radius = 4
     }
-    this.hemi.intensity = HEMI_BASE * look.skyLight
+    this.hemi.intensity = HEMI_BASE * look.skyLight * this.ambientScale
     this.bounceLight.groundColor.copy(this.bounceSource).multiply(sun.color)
-    this.bounceLight.intensity = look.bounce * look.sunIntensity * BOUNCE_ALBEDO
+    this.bounceLight.intensity = look.bounce * look.sunIntensity * this.sunScale * BOUNCE_ALBEDO
     plasticUniforms.plasticGlow.value = look.glow
-    this.scene.environmentIntensity = ENV_BASE * look.skyLight
+    this.scene.environmentIntensity = ENV_BASE * look.skyLight * this.ambientScale
     this.renderer.toneMapping = TONE_MAPS[look.toneMap]
     this.renderer.toneMappingExposure = look.exposure
     // GTAO's `scale` is an exponent on the occlusion term; it's the real strength control.

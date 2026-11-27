@@ -330,7 +330,7 @@ export function parsePieces(src: string): Piece[] {
   const out: Piece[] = []
   let surface: SurfaceName | undefined
   for (const tok of src.trim().split(/\s+/)) {
-    if (tok === 'tarmac' || tok === 'gravel' || tok === 'grass') {
+    if (tok === 'tarmac' || tok === 'gravel') {
       surface = tok
       continue
     }

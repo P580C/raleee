@@ -11,6 +11,8 @@ import { Lighting } from './render/lighting'
 import { look, LOOKS, loadLookOverrides } from './render/look'
 import { createScene } from './render/scene'
 import { SkidMarks } from './render/skidMarks'
+import { WeatherView } from './render/weatherView'
+import { rollTime, rollWeather, weatherGrip, type TimeOfDay, type Weather } from './sim/weather'
 import { Dust } from './render/dust'
 import { buildScenery, obstacleLines } from './render/scenery'
 import { buildTrackView, disposeGroup } from './render/trackView'
@@ -82,6 +84,20 @@ const fpsMeter =
 fpsMeter?.setLabel(lookName())
 rig.shakeEnabled = settings.cameraShake
 
+const weatherView = new WeatherView(scene, app, lighting)
+const WEATHER_LABELS: Record<Weather, string> = { clear: '☀ CLEAR', rain: '☂ RAIN', snow: '❄ SNOW', fog: '≋ FOG' }
+/** ?weather=clear|rain|snow|fog and ?time=day|night force them (testing). */
+const forceWeather = params.get('weather')
+const forceTime = params.get('time')
+/** Set the weather and time of day for this race (sim grip + look + HUD). A clear day outside races. */
+function setWeather(w: Weather, time: TimeOfDay = 'day'): void {
+  weatherView.set(w, time)
+  carView.setLightLevel(weatherView.lightLevel, weatherView.beams, weatherView.night)
+  if (track) track.weatherGrip = weatherGrip(w)
+  const label = WEATHER_LABELS[w]
+  hud.setWeather(time === 'night' ? (w === 'clear' ? '☾ NIGHT' : `☾ NIGHT · ${label}`) : label)
+}
+
 const input = new Input(app)
 const hud = new Hud(app, () => input.requestRestart(), () => back(), debug)
 if (debug)
@@ -104,6 +120,8 @@ function setCar(def: CarDef): void {
     carView.dispose()
   }
   carView = new CarView(def)
+  weatherView.beamMask.nose = carView.beamStart
+  carView.setLightLevel(weatherView.lightLevel, weatherView.beams, weatherView.night)
   lighting.prepareObject(carView.root)
   scene.add(carView.root)
   carView.update(curr, curr, 1)
@@ -154,6 +172,7 @@ function loadStage(id: string, force = false): void {
   }
   const data = trackDataOf(entry)
   track = new Track(data)
+  weatherView.setTrack(track)
   trackGroup = buildTrackView(track)
   lighting.prepareObject(trackGroup)
   scene.add(trackGroup)
@@ -233,6 +252,7 @@ function showMenu(fromEditor = false): void {
   testingFrom = null
   setRaceUi(false)
   loadStage(selection.track, fromEditor)
+  setWeather('clear')
   if (sceneryGroup) sceneryGroup.visible = true
   carView.root.visible = true
   skids.mesh.visible = true
@@ -244,6 +264,8 @@ function startRace(fromEditor = false): void {
   mode = 'race'
   menu.hide()
   loadStage(selection.track, fromEditor)
+  // A new roll every time you load into a race; retry keeps it.
+  setWeather(rollWeather(Math.random(), forceWeather), rollTime(Math.random(), forceTime))
   if (trackGroup) trackGroup.visible = true
   if (sceneryGroup) sceneryGroup.visible = true
   carView.root.visible = true
@@ -266,6 +288,7 @@ function openEditor(trackId: string | null): void {
   if (trackGroup) trackGroup.visible = false
   if (sceneryGroup) sceneryGroup.visible = false
   if (debugLines) debugLines.visible = false
+  setWeather('clear')
   editor.open(trackId)
 }
 
@@ -285,6 +308,7 @@ function resize(): void {
   renderer.setSize(w, h)
   rig.resize(w, h)
   lighting.resize(w, h)
+  weatherView.resize(w, h)
 }
 window.addEventListener('resize', resize)
 resize()
@@ -354,6 +378,7 @@ function frame(now: number): void {
     skids.update(carView.wheelGround, curr.skidF, curr.skidR)
     dust.update(dt, carView.wheelGround, curr)
     rig.update(dt, carView.pos.x, carView.pos.y, carView.pos.z, curr.vx, curr.vz)
+    weatherView.update(dt, rig.camera, carView.pos, carView.root.rotation.y)
     hud.setSpeed(curr.speed)
     hud.setTime(game.time, game.status === 'finished')
     hud.setFade(game.fade)
