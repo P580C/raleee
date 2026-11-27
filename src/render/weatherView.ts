@@ -363,7 +363,7 @@ export class WeatherView {
       this.scene.add(this.drifts)
     }
     if (this.drifts) this.drifts.visible = w === 'snow'
-    this.setSelfGlow(this.night ? 0 : 1)
+    this.setSelfGlow(this.night)
     this.rain.mesh.visible = w === 'rain'
     this.snow.mesh.visible = w === 'snow'
     this.rain.reset()
@@ -379,19 +379,28 @@ export class WeatherView {
   }
 
   /**
-   * Scale every emissive (self-lit) material in the scene: 0 at night so only lit things show. Each
-   * material's daytime value is remembered the first time it's seen.
+   * Self-lit (emissive) materials at night: off, so only lit things show, unless the material names its
+   * own night glow in `userData.nightEmissive` (the road lines keep a faint neutral glow). Each
+   * material's daytime glow is remembered the first time it's seen and restored by day.
    */
-  private setSelfGlow(k: number): void {
+  private setSelfGlow(night: boolean): void {
     this.scene.traverse((o) => {
       if (OWN_GLOW.has(o.name)) return
       const mat = (o as Mesh).material
       if (!mat) return
       for (const m of Array.isArray(mat) ? mat : [mat]) {
         const e = m as MeshStandardMaterial
-        if (e.emissiveIntensity === undefined) continue
+        if (e.emissiveIntensity === undefined || !e.emissive) continue
         e.userData.dayEmissive ??= e.emissiveIntensity
-        e.emissiveIntensity = e.userData.dayEmissive * k
+        e.userData.dayEmissiveColor ??= e.emissive.getHex()
+        const nightGlow = e.userData.nightEmissive as string | undefined
+        if (night && nightGlow) {
+          e.emissive.set(nightGlow)
+          e.emissiveIntensity = 1
+        } else {
+          e.emissive.setHex(e.userData.dayEmissiveColor)
+          e.emissiveIntensity = night ? 0 : e.userData.dayEmissive
+        }
       }
     })
   }

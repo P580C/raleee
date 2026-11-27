@@ -21,6 +21,8 @@ const C = {
 }
 /** Stripes (edge lines, centre dashes, white chequers): white + emissive renders as #E5F1F0 in the sun. */
 const STRIPE_EMISSIVE = '#4c6200'
+/** Stripes at night: a dim neutral grey glow, so the lines are just readable in the dark. */
+const NIGHT_STRIPE_EMISSIVE = '#3c3c3c'
 const WHITE = new Color('#ffffff')
 /** How deep the road slab is below its surface (m): gives it visible sides against the floor. */
 const SLAB = 0.8
@@ -162,7 +164,11 @@ export function buildTrackView(track: Track): Group {
   const roadMesh = new Mesh(road.build(), matte({ vertexColors: true }))
   roadMesh.receiveShadow = true
   roadMesh.castShadow = true
-  const lineMesh = new Mesh(lines.build(), matte({ color: WHITE, emissive: STRIPE_EMISSIVE }))
+  const lineMat = matte({ color: WHITE, emissive: STRIPE_EMISSIVE })
+  // At night (weatherView) the lines keep a faint neutral glow, like reflective paint, instead of the
+  // daytime yellow-green that balances the sun.
+  lineMat.userData.nightEmissive = NIGHT_STRIPE_EMISSIVE
+  const lineMesh = new Mesh(lines.build(), lineMat)
   lineMesh.receiveShadow = true
   group.add(roadMesh, lineMesh)
 

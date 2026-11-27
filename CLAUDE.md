@@ -9,7 +9,7 @@ Study both images before writing any code. Match their mood: soft flat colours, 
 
 The game in one paragraph
 
-A fast, smooth, arcade rally game. One car, one track, against the clock. It is a point-to-point rally stage, not a loop: the camera follows the car as the road winds up the screen from bottom to top, start line to finish line. The car is a real 3D model with soft suspension, visible body roll and pitch, and it can be thrown into long, controllable drifts. Surfaces change grip (tarmac, mud, grass, mixed). Some sections rise or drop a level. Beat your best time, retry instantly.
+A fast, smooth, arcade rally game. One car, one track, against the clock. It is a point-to-point rally stage, not a loop: the camera follows the car as the road winds up the screen from bottom to top, start line to finish line. The car is a real 3D model with soft suspension, visible body roll and pitch, and it can be thrown into long, controllable drifts. Surfaces change grip (tarmac, gravel, grass off the road). Some sections rise or drop a level. Weather and night are rolled at random each time you load in. Beat your best time, retry instantly.
 
 Tech stack (decided - do not change without asking)
 TypeScript + Vite + three.js. Mobile browser first, installable as a PWA later.
@@ -30,7 +30,8 @@ LEGO models (car and scenery)
 The car and scenery will be LEGO models built in BrickLink Studio and exported as LDraw. Import them with tools/import_lego.py, which reuses the Brick Snap Lab pipeline (../Brick Build/assets/ldraw_to_glb.py) without changing it: the brick game keeps full-detail whole parts, this game strips everything the camera can't see. Body/scenery: merged, keeps only faces visible from at least 15° above the horizon (undersides, tubes, insides and faces hidden between bricks go). Submodels named "wheel*" become separate wheel meshes (one per use, culled to their outer half since they spin). Studs use 8-sided primitives. Test car (tools/test/testCar.mpd): 16,076 tris full detail -> 4,650. Check imports with /tools/preview.html?a=<full.glb>&b=<game.glb>&pitch=35. One-time setup: python3 -m venv tools/.venv && tools/.venv/bin/pip install numpy pillow trimesh embreex scipy rtree.
 
 Car model
-Build the car procedurally in code (src/render/carModel.ts) to match reference/Cars.jpg: a boxy wedge-shaped 80s four-wheel-drive rally coupe, pale blue-grey body, yellow lower band, red and black side stripes, box-flared arches, low rear wing, quad spot lamps, white five-spoke wheels. (reference/car.png was the original hatchback and still sets the general flat-shaded style.) The car is 4WD: strong traction, and drifts are four-wheel drifts where throttle pulls the car round (tuning: awdPull). The front tyres also hold the line: a little lateral grip in normal cornering (frontLatGrip) and more while the handbrake is held (handbrakeFrontGrip), so handbrake turns pull round instead of understeering wide. Keep it under ~1,500 triangles.
+Build the car procedurally in code (src/render/carModel.ts) to match reference/Cars.jpg: a boxy wedge-shaped 80s four-wheel-drive rally coupe, pale blue-grey body, yellow lower band, red and black side stripes, box-flared arches, low rear wing, quad spot lamps, white five-spoke wheels, two tail lamps with the white reversing lamps inboard. (reference/car.png was the original hatchback and still sets the general flat-shaded style.) The car is 4WD: strong traction, and drifts are four-wheel drifts where throttle pulls the car round (tuning: awdPull). The front tyres also hold the line: a little lateral grip in normal cornering (frontLatGrip) and more while the handbrake is held (handbrakeFrontGrip), so handbrake turns pull round instead of understeering wide. Keep it under ~1,500 triangles.
+Lamps (src/render/carView.ts, positions per car in cars.ts lamps): headlamp glow and brake / reversing lamp glow are soft sprites (fake bloom, no post pass). Headlight beams are a fading texture on the ground ahead, drawn after the road and scenery but before the car (no depth test), so a rising road never hides them and they never cover the car. At night a real SpotLight (no shadows) lights the road and scenery; it only exists at night, so daytime pays nothing.
 Body is a separate node from the wheels so it can roll and pitch on the suspension.
 Wheels steer visually (front) and spin with speed.
 Handling (the most important section)
@@ -43,7 +44,7 @@ Go - throttle. Held = accelerate.
 Steer - left / right.
 Handbrake - held = rear wheels lose most of their grip, car rotates into a drift. Release to regain grip.
 No throttle = gentle auto-brake (engine braking plus light drag), not a coast. The car should slow down noticeably but smoothly, never stop dead.
-Brake - S / Down, or the BRAKE touch button above GO. Held at a standstill it reverses (slowly, ~25 km/h); throttle drives forward again. Brake lamps glow under braking, white reversing lamps in reverse. If the car gets stuck or leaves the track, auto-reset onto the nearest track point after ~1.5 s (with a short fade).
+Brake - S / Down, or the BRAKE touch button above GO. Held at a standstill it reverses (slowly, ~25 km/h); throttle drives forward again. Brake lamps glow under braking and while the handbrake is held, white reversing lamps in reverse. If the car gets stuck or leaves the track, auto-reset onto the nearest track point after ~1.5 s (with a short fade).
 
 Model
 
@@ -63,15 +64,24 @@ Surfaces
 
 Surface	Grip	Top speed	Feel
 Tarmac	high	100%	precise, drifts need handbrake
-Gravel / mud	low	~85%	loose, easy long drifts, dust/mud particles
-Grass	lowest	~70%	slows you down, punishes cutting corners
+Gravel	low	~85%	loose, easy long drifts
+Grass (off the road only)	lowest	~70%	slows you down, punishes cutting corners
 
+Road surfaces are tarmac and gravel only (SurfaceName). Grass is not a road surface any more: it is the ground off the road. Stages saved with a grass road load it as gravel (roadSurface() in track.ts).
 Mixed sections blend between surfaces per wheel, so two wheels on grass pulls the car sideways. Grip is sampled per wheel from the track data.
+Dust (src/render/dust.ts): the driven tyres (all four on the coupe, rears on the hatch; tuning driveFront) kick up low-poly puffs on any loose ground (gravel, grass, off the road). Amount from the sim's per-wheel dust (rolling speed, throttle/wheelspin, slides); sandy on gravel, greener on grass. Puffs shrink away instead of fading (opaque, one instanced draw call). Tuning: dustAmount.
 
 Level changes
 
 Ramps and drops between height levels. The car keeps a vertical velocity, can get small amounts of air off crests, and lands on the suspension (big compression, camera shake).
 No full 3D physics. Height comes from the track's elevation profile. When airborne, horizontal motion continues, gravity applies, steering does almost nothing.
+
+Weather and time of day
+
+Rolled at random each time you load into a race (menu RACE or an editor DRIVE); retry keeps it. Weather (src/sim/weather.ts): clear, rain, snow or fog, equally likely. Time: night with NIGHT_CHANCE (30%), combined with any weather. The HUD shows it under the timer. Menu and editor are always a clear day. Force with ?weather=clear|rain|snow|fog and ?time=day|night.
+Grip: rain x rainGrip (0.9), snow x snowGrip (0.7), fog and clear 1. Track.weatherGrip scales every tyre force, including the ones capped on a dry road (steering bite, braking, traction), so it is felt below the limit, not only at it.
+Look (src/render/weatherView.ts, per-weather table LOOKS): sun dimming and floor colour via Lighting.setWeather. Rain streaks and wind-blown snow are world-anchored instanced particles drawn over the scene, wrapped round the view in screen axes (and in depth). Snow banks the road edges with ragged white drifts (snowDrifts.ts, built per stage the first time it snows). Fog is a DOM radial gradient centred on the car, 2x thick (4% visibility at the screen edges). Headlight glow per weather (none on a clear day), beams in rain and fog.
+Night: near-black floor, almost no moon or sky fill, every self-lit material switched off except the car's lamps and the road lines (a faint neutral glow, userData.nightEmissive), headlights full on with beams and the SpotLight, light HUD text (.night class). Rain and snow at night only show inside the headlight beams (BeamMask) and gather round them.
 
 Tuning
 
@@ -82,11 +92,11 @@ Left thumb: steer. Two large invisible zones (left half / right half of the bott
 Right thumb: a large GO button and a HANDBRAKE button just above/beside it, so the thumb can roll between them.
 Buttons are semi-transparent and placed so they never cover the road ahead of the car.
 Prevent page scroll, zoom, text selection and long-press menus. Use pointer events. Support multi-touch properly.
-Keyboard fallback for desktop testing: Up/W = go, Down/S = brake / reverse, Left/Right or A/D = steer, Space = handbrake, R = restart, Esc = menu. URL shortcuts: ?track=<id>&car=<id>&race skips the menu.
+Keyboard fallback for desktop testing: Up/W = go, Down/S = brake / reverse, Left/Right or A/D = steer, Space = handbrake, R = restart, Esc = menu. URL shortcuts: ?track=<id>&car=<id>&race skips the menu; ?weather=<kind> and ?time=day|night force the conditions.
 Light haptics via navigator.vibrate where supported, on landing and on hitting grass.
 Tracks
 Tracks are data, not code. Each track is a JSON file containing a centreline spline (control points with x, z, elevation), road width, and per-segment surface type.
-Stages are built from slot-car style pieces (like a Scalextric set, src/sim/pieces.ts): straight (32 m), 45° bend (r 40), 90° bend (r 32), large 90° (r 56), small 90° (r 18), each left or right, with a surface and an optional ramp of one level (2.5 m) up or down; plus a roundabout (ring radius 20 round a grass island, four arms ending 32 m from the centre, exit left / straight on / right, always level). The whole ring and all arms are road for the physics (Track.junctions); unused arms are capped. Headings stay on multiples of 45°, so straights follow the isometric grid like map.jpg. A piece stage is JSON ({format: "pieces", heading, pieces}) converted to the spline format on load; a 200 m lead-in puts the road off the bottom of the screen and a 60 m run-out follows the finish. Built-in stages: src/tracks/valley.json, sprint.json (piece stages) and stage1.json ("Classic", spline). src/tracks/registry.ts lists them plus the player's own (localStorage).
+Stages are built from slot-car style pieces (like a Scalextric set, src/sim/pieces.ts): straight (32 m), 45° bend (r 40), 90° bend (r 32), large 90° (r 56), small 90° (r 18), each left or right, with a surface (tarmac or gravel) and an optional ramp of one level (2.5 m) up or down; plus a roundabout (ring radius 20 round a grass island, four arms ending 32 m from the centre, exit left / straight on / right, always level). The whole ring and all arms are road for the physics (Track.junctions); unused arms are capped. Headings stay on multiples of 45°, so straights follow the isometric grid like map.jpg. A piece stage is JSON ({format: "pieces", heading, pieces}) converted to the spline format on load; a 200 m lead-in puts the road off the bottom of the screen and a 60 m run-out follows the finish. Built-in stages: src/tracks/valley.json, sprint.json (piece stages) and stage1.json ("Classic", spline). src/tracks/registry.ts lists them plus the player's own (localStorage).
 Menu (src/ui/menu.ts): pick a stage and a car, RACE, or open the editor. Cars (src/cars.ts): the 4WD Group B coupe (carModel.ts, Cars.jpg) and the original Retro Hatch (carHatch.ts, RetroCar.png: rear-drive, less power, tail-happy); each lays its own handling numbers over tuning.ts.
 Track editor (src/editor/editor.ts), two tabs. TRACK: every piece variant in one grid (straight, 45/90/wide/tight left and right, roundabout left/ahead/right); tap to add after the selected piece, tap the road to select, change surface / level, FLIP, delete, undo, fit; ROTATE STAGE in the ••• menu. SCENERY: the models in public/models/scenery.json (thumbnails rendered on load); tap one to drop it in the middle of the view, tap a placed model to select, drag to move, ⟲/⟳ (or Q/E) turn 15°, COPY, DELETE, SNAP (1 m / 15°), AUTO MOUNDS (scatter test mounds when racing). Placed scenery is stored in the stage ({m, x, z, r}), sits on the road height nearest it, is instanced in the race and collides (parts above collideAbove). Drag empty ground to pan, pinch or scroll to zoom.
 Scenery models: build in BrickLink Studio, export LDraw, then tools/.venv/bin/python tools/import_lego.py ldraw/X.ldr public/models/x.glb --scenery "Name" [--game-scale 3] [--collide-above 1.2] adds it to the catalog. Overlapping road shows red. Changes save automatically; DRIVE test-drives the stage and EDIT returns to the editor. COPY JSON / PASTE JSON move stages between devices. Generate the road mesh, verges, shoulders and terrain islands from that data.
