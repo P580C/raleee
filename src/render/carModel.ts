@@ -257,9 +257,13 @@ export function buildCarShell(wheelZF: number, wheelZR: number, wheelR: number):
   // Front lip.
   b.box('black', W * 2 + 0.04, 0.06, 0.12, 0, sill + 0.02, ZF - 0.02)
 
-  // ── Tail: full-width tail lamps, black lower panel, raised wing ──
-  b.box('tail', W * 2 - 0.1, 0.13, 0.04, 0, 0.68, ZR - 0.01, ['front'])
-  for (const sx of [1, -1]) b.box('reverse', 0.16, 0.09, 0.03, sx * 0.26, 0.68, ZR - 0.035, ['front'])
+  // ── Tail: a tail lamp each side (outboard of the reversing lamps), black lower panel, raised wing ──
+  for (const sx of [1, -1]) {
+    const inner = 0.34
+    const outer = W - 0.05
+    b.box('tail', outer - inner, 0.13, 0.04, sx * (inner + outer) * 0.5, 0.68, ZR - 0.01, ['front'])
+    b.box('reverse', 0.16, 0.09, 0.05, sx * 0.26, 0.68, ZR - 0.025, ['front'])
+  }
   b.box('black', W * 2 + 0.02, 0.1, 0.08, 0, sill + 0.04, ZR + 0.02)
   // Low boot-lid wing on two short stands.
   const wingY = waist(ZR) + 0.13
