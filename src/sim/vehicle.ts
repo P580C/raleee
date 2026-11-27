@@ -94,6 +94,12 @@ export class CarState {
   skidR = 0
   /** Ground height under each wheel: FL, FR, RL, RR. */
   readonly wheelH = new Float64Array(4)
+  /** How loose the ground under each wheel is, 0 (tarmac) .. 1 (gravel, grass, off the road). */
+  readonly wheelLoose = new Float64Array(4)
+  /** Grass share of that loose ground (for the dust colour), 0 = all gravel. */
+  readonly wheelGrass = new Float64Array(4)
+  /** Dust kicked up by each wheel, 0..1 (visual). Only driven wheels on loose ground make any. */
+  readonly dust = new Float64Array(4)
 
   copyFrom(o: CarState): void {
     this.x = o.x
@@ -143,6 +149,9 @@ export class CarState {
     this.skidF = o.skidF
     this.skidR = o.skidR
     this.wheelH.set(o.wheelH)
+    this.wheelLoose.set(o.wheelLoose)
+    this.wheelGrass.set(o.wheelGrass)
+    this.dust.set(o.dust)
   }
 }
 
@@ -241,6 +250,7 @@ export function placeCar(s: CarState, track: Track, idx: number): void {
   s.offTarget = 0
   s.brakeLamp = s.skidF = s.skidR = 0
   s.wheelH.fill(s.y)
+  s.dust.fill(0)
 }
 
 // Per-step scratch (no allocation in the hot loop).
@@ -364,6 +374,9 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
     wheelDrag[w] = q.wTarmac * T.tarmacDrag + q.wGravel * T.gravelDrag + q.wGrass * T.grassDrag
     speedFactor += 0.25 * (q.wTarmac * T.tarmacSpeed + q.wGravel * T.gravelSpeed + q.wGrass * T.grassSpeed)
     if (q.wGrass > 0.5) grass++
+    const loose = q.onIsland ? 1 - q.wTarmac : 0
+    s.wheelLoose[w] = loose
+    s.wheelGrass[w] = loose > 0.01 ? q.wGrass / (q.wGrass + q.wGravel) : 0
     if (w < 2) surfF += grip * 0.5
     else surfR += grip * 0.5
   }
@@ -603,8 +616,22 @@ export function stepCar(s: CarState, c: Controls, track: Track, dt: number): voi
     const hand = c.handbrake ? smoothstep(2, 8, speed) : 0
     s.skidF = Math.max(side * 0.8, lock, launch)
     s.skidR = Math.max(side, lock, launch, hand)
+    // Dust from the driven tyres on loose ground: some just from rolling at speed, more under power
+    // (wheelspin) and when the tyres slide.
+    const drive = c.throttle > 0 ? c.throttle : s.reversing ? c.brake : 0
+    const roll = smoothstep(2, 25, speed)
+    for (let w = 0; w < 4; w++) {
+      const front = w < 2
+      if (front && T.driveFront <= 0) {
+        s.dust[w] = 0
+        continue
+      }
+      const kick = Math.max(roll * 0.35, drive * (0.4 + 0.6 * roll), front ? s.skidF : s.skidR)
+      s.dust[w] = Math.min(1, s.wheelLoose[w] * kick)
+    }
   } else {
     s.skidF = s.skidR = 0
+    s.dust.fill(0)
   }
 
   // ── Wheels spin ────────────────────────────────────────

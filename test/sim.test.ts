@@ -498,3 +498,40 @@ describe('stage scenery', () => {
     expect(td.autoScenery).toBe(false)
   })
 })
+
+describe('dust', () => {
+  const drive = (surface: 'tarmac' | 'gravel', moveX = 0) => {
+    const t = straight(surface)
+    const s = new CarState()
+    placeCar(s, t, 0)
+    run(t, s, go, 0.5)
+    if (moveX) {
+      s.x += moveX
+      run(t, s, go, SIM_DT)
+    }
+    return s
+  }
+
+  it('none on tarmac, from all four tyres of a 4WD car on gravel', () => {
+    expect(Math.max(...drive('tarmac').dust)).toBe(0)
+    const g = drive('gravel')
+    for (let w = 0; w < 4; w++) expect(g.dust[w]).toBeGreaterThan(0.2)
+  })
+
+  it('kicked up off the road even from a tarmac stage', () => {
+    const s = drive('tarmac', 12)
+    expect(Math.min(...s.dust)).toBeGreaterThan(0.2)
+  })
+
+  it('only the rear tyres of a rear-drive car', () => {
+    const before = tuning.driveFront
+    tuning.driveFront = 0
+    try {
+      const g = drive('gravel')
+      expect(g.dust[0] + g.dust[1]).toBe(0)
+      expect(Math.min(g.dust[2], g.dust[3])).toBeGreaterThan(0.2)
+    } finally {
+      tuning.driveFront = before
+    }
+  })
+})

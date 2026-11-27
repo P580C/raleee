@@ -94,6 +94,7 @@ const GROUPS: [string, Def[]][] = [
       ['offroadMargin', 0, 15, 0.1],
       ['offroadSpeed', 0.2, 1, 0.01],
       ['offroadBrake', 0, 40, 0.5],
+      ['dustAmount', 0, 3, 0.05],
     ],
   ],
   [

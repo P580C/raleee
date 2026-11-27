@@ -11,6 +11,7 @@ import { Lighting } from './render/lighting'
 import { look, LOOKS, loadLookOverrides } from './render/look'
 import { createScene } from './render/scene'
 import { SkidMarks } from './render/skidMarks'
+import { Dust } from './render/dust'
 import { buildScenery, obstacleLines } from './render/scenery'
 import { buildTrackView, disposeGroup } from './render/trackView'
 import { Track } from './sim/track'
@@ -62,6 +63,9 @@ const rig = new CameraRig()
 const lighting = new Lighting(renderer, scene, rig.camera)
 const skids = new SkidMarks()
 scene.add(skids.mesh)
+const dust = new Dust()
+scene.add(dust.mesh)
+lighting.prepareObject(dust.mesh)
 
 // Frame-rate meter: ?fps or ?debug. Tapping it cycles the lighting presets.
 const lookName = () => LOOKS.find((l) => Object.entries(l.values).every(([k, v]) => look[k as keyof typeof look] === v))?.label ?? 'custom'
@@ -121,6 +125,7 @@ function placeAtStart(): void {
   carView.update(curr, curr, 1)
   rig.snap(curr.x, curr.y, curr.z)
   skids.clear()
+  dust.clear()
 }
 
 /** Build a stage (skipped if it's already loaded, unless `force`: the editor may have changed it). */
@@ -156,6 +161,7 @@ function loadStage(id: string, force = false): void {
     carView.update(curr, curr, 1)
     rig.snap(curr.x, curr.y, curr.z)
     skids.breakAll()
+    dust.clear()
   })
   placeAtStart()
   const t = track
@@ -256,6 +262,7 @@ function openEditor(trackId: string | null): void {
   // The editor draws its own copy of the stage; hide the race scene.
   carView.root.visible = false
   skids.mesh.visible = false
+  dust.clear()
   if (trackGroup) trackGroup.visible = false
   if (sceneryGroup) sceneryGroup.visible = false
   if (debugLines) debugLines.visible = false
@@ -308,6 +315,7 @@ function frame(now: number): void {
     if (input.consumeRestart()) {
       game.restart()
       skids.clear()
+      dust.clear()
     }
   }
   if (mode === 'race') {
@@ -344,6 +352,7 @@ function frame(now: number): void {
     const alpha = acc / SIM_DT
     carView.update(prev, curr, alpha)
     skids.update(carView.wheelGround, curr.skidF, curr.skidR)
+    dust.update(dt, carView.wheelGround, curr)
     rig.update(dt, carView.pos.x, carView.pos.y, carView.pos.z, curr.vx, curr.vz)
     hud.setSpeed(curr.speed)
     hud.setTime(game.time, game.status === 'finished')

@@ -110,6 +110,8 @@ export const tuning = {
   /** Four-wheel drive: share of engine drive that pulls along the nose in a drift (0 = rear-drive feel).
    *  Higher = throttle tightens the line and pulls the car out of the slide. */
   awdPull: 0.4,
+  /** 1 = the front wheels are driven too (4WD), 0 = rear-drive. Only decides which tyres kick up dust. */
+  driveFront: 1,
   driftScrub: 7,
   /** Natural slide angle (rad) that turns into a drift while on throttle. */
   driftEntryAngle: 0.25,
@@ -154,6 +156,8 @@ export const tuning = {
   offroadSpeed: 0.5,
   /** How hard leaving the track slows the car to offroadSpeed (m/s²). */
   offroadBrake: 22,
+  /** Dust puffs from the driven tyres on loose ground: x the base rate (0 = off). */
+  dustAmount: 1,
 
   // ── Air ────────────────────────────────────────────────
   /** Vertical gravity for jumps (arcade, heavier than real). */
