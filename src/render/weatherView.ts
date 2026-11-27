@@ -17,6 +17,7 @@ import {
   Matrix4,
   MeshBasicMaterial,
   type Mesh,
+  type MeshStandardMaterial,
   type OrthographicCamera,
   type Scene,
   Quaternion,
@@ -47,13 +48,19 @@ const LOOKS: Record<Weather, Look> = {
 }
 
 /** Night: a dim blue moon, little sky fill, a dark floor (per weather), headlights full on with beams. */
-const NIGHT = { sun: 0.14, ambient: 0.16, moon: '#8fa6ff' }
+/**
+ * Night: almost no moon or sky fill and a near-black floor, so the stage is dark unless the headlight
+ * lights it. Self-glow (road lines, snow drifts) is switched off too; only the car's lamps glow.
+ */
+const NIGHT = { sun: 0.015, ambient: 0.015, moon: '#8fa6ff' }
 const NIGHT_BACKGROUND: Record<Weather, string> = {
-  clear: '#121827',
-  rain: '#10141f',
-  snow: '#1a2133',
-  fog: '#262d3b',
+  clear: '#06080e',
+  rain: '#05070c',
+  snow: '#090c14',
+  fog: '#10131b',
 }
+/** Meshes whose glow the car drives itself (brake and reversing lamps): left alone at night. */
+const OWN_GLOW = new Set(['tail', 'reverse'])
 
 /**
  * Fog profile: opacity at fractions of the half-screen distance from the car (one layer: 20% visibility
@@ -80,8 +87,8 @@ interface Precip {
   wind: number
 }
 
-const RAIN: Precip = { count: 420, fall: 34, fallVar: 8, sway: 0, wind: 0 }
-const SNOW: Precip = { count: 400, fall: 6.4, fallVar: 2.8, sway: 2.5, wind: 7 }
+const RAIN: Precip = { count: 420, fall: 102, fallVar: 24, sway: 0, wind: 0 }
+const SNOW: Precip = { count: 1200, fall: 6.4, fallVar: 2.8, sway: 2.5, wind: 7 }
 /** Extra margin round the view (m) so particles wrap off screen. */
 const MARGIN = 3
 /** Depth range (m) along the view direction the particles are spread through (only affects wrapping). */
@@ -299,7 +306,7 @@ class Particles {
 
 export class WeatherView {
   weather: Weather = 'clear'
-  private readonly rain = new Particles(RAIN, new BoxGeometry(0.1, 2, 0.1), '#7f93bb', 0.6)
+  private readonly rain = new Particles(RAIN, new BoxGeometry(0.045, 2.6, 0.045), '#8a9cc2', 0.65)
   private readonly snow = new Particles(SNOW, new IcosahedronGeometry(0.15, 0), '#ffffff', 0.95)
   private readonly fogEl: HTMLDivElement
   private width = 1
@@ -356,6 +363,7 @@ export class WeatherView {
       this.scene.add(this.drifts)
     }
     if (this.drifts) this.drifts.visible = w === 'snow'
+    this.setSelfGlow(this.night ? 0 : 1)
     this.rain.mesh.visible = w === 'rain'
     this.snow.mesh.visible = w === 'snow'
     this.rain.reset()
@@ -370,13 +378,31 @@ export class WeatherView {
     this.styleFog()
   }
 
+  /**
+   * Scale every emissive (self-lit) material in the scene: 0 at night so only lit things show. Each
+   * material's daytime value is remembered the first time it's seen.
+   */
+  private setSelfGlow(k: number): void {
+    this.scene.traverse((o) => {
+      if (OWN_GLOW.has(o.name)) return
+      const mat = (o as Mesh).material
+      if (!mat) return
+      for (const m of Array.isArray(mat) ? mat : [mat]) {
+        const e = m as MeshStandardMaterial
+        if (e.emissiveIntensity === undefined) continue
+        e.userData.dayEmissive ??= e.emissiveIntensity
+        e.emissiveIntensity = e.userData.dayEmissive * k
+      }
+    })
+  }
+
   /** Where the headlight beams fall (from CarView): at night, snow is only seen in them. */
   readonly beamMask = new BeamMask()
 
   /** Per frame, after the camera moved. `focus` is the car (fog clears round it), `heading` its yaw. */
   update(dt: number, cam: OrthographicCamera, focus: Vector3, heading: number): void {
     this.beamMask.set(focus, heading)
-    if (this.weather === 'rain') this.rain.update(dt, cam)
+    if (this.weather === 'rain') this.rain.update(dt, cam, this.night ? this.beamMask : undefined)
     else if (this.weather === 'snow') this.snow.update(dt, cam, this.night ? this.beamMask : undefined)
     else if (this.weather === 'fog') this.moveFog(cam, focus)
   }

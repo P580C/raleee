@@ -563,11 +563,11 @@ describe('weather', () => {
     expect(rollTime(0.99, 'night')).toBe('night')
   })
 
-  it('rain takes 10% of the grip and snow 25%; fog none', () => {
+  it('rain takes 10% of the grip and snow 30%; fog none', () => {
     expect(weatherGrip('clear')).toBe(1)
     expect(weatherGrip('fog')).toBe(1)
     expect(weatherGrip('rain')).toBeCloseTo(0.9)
-    expect(weatherGrip('snow')).toBeCloseTo(0.75)
+    expect(weatherGrip('snow')).toBeCloseTo(0.7)
   })
 
   it('less grip stops the car over a longer distance', () => {

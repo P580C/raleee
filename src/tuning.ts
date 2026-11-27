@@ -158,7 +158,7 @@ export const tuning = {
   offroadBrake: 22,
   /** Weather grip (x all surfaces): rain and snow. */
   rainGrip: 0.9,
-  snowGrip: 0.75,
+  snowGrip: 0.7,
   /** Dust puffs from the driven tyres on loose ground: x the base rate (0 = off). */
   dustAmount: 1,
 
